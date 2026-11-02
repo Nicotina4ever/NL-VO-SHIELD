@@ -8,3 +8,4 @@ scipy>=1.15,<2
 soundfile>=0.13,<1
 cryptography>=42,<52
 librosa>=0.10,<2
+pyloudnorm>=0.2.0,<1
