@@ -269,7 +269,14 @@ impl EngineManager {
                 command.arg("-m").arg(module);
                 command
             }
-            EngineEntry::Frozen { exe } => Command::new(exe),
+            EngineEntry::Frozen { exe } => {
+                // The frozen sidecar entrypoint (tooling/sidecar_entry.py) starts
+                // the JSON-RPC loop only with `--rpc`; without it the CLI parser
+                // exits with "the following arguments are required: command".
+                let mut command = Command::new(exe);
+                command.arg("--rpc");
+                command
+            }
         };
         command.arg("--data-dir").arg(&launch.data_dir);
         command.current_dir(&launch.cwd);
@@ -753,3 +760,4 @@ for line in sys.stdin:
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
