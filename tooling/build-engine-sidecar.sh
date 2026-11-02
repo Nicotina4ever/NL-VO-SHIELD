@@ -330,7 +330,8 @@ check_doctor_c2pa() {
       "$exe" $regargs doctor --json --data-dir "$data_dir" 2>&1)"
   fi
   set -e
-  json="$(printf '%s' "$out" | sed -n '/^{/,$p' | head -n 400)"
+  json="$(printf '%s' "$out" | sed -n '/^{/,$p')"
+  # NB: no `head` here: with pipefail+set -e it can SIGPIPE `sed` and abort the build.
   tool_status="$(printf '%s' "$json" | grep -A2 '"tool.c2patool"' | grep -o '"status": "[a-z]*"' | head -n 1 | sed 's/.*: "//;s/"//')"
   engine_status="$(printf '%s' "$json" | tr -d '\n ' | grep -o '"id":"c2pa"[^}]*"status":"[a-z]*"' | grep -o '"status":"[a-z]*"' | head -n 1 | sed 's/.*"//;s/"//')"
   if [ "$tool_status" = "ok" ] && [ "$engine_status" = "available" ]; then
@@ -388,4 +389,5 @@ log OK "engine payload ready: $ENGINE_DIR ($(du -sh "$ENGINE_DIR" | awk '{print 
 log INFO "log: $LOG_FILE"
 log INFO 'note: macOS signing/notarization requires Apple certificates; the payload is unsigned otherwise.'
 exit 0
+
 
