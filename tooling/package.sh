@@ -163,7 +163,7 @@ fi
 case "$OS" in
   windows)
     if [ ! -f "$ENGINE_DIR/runtime/python.exe" ]; then
-      if [ "$(json_nested "$ENGINE_MANIFEST" runtime)" = "false" ]; then
+      if [ "$(json_get "$ENGINE_MANIFEST" runtime)" = "false" ]; then
         log WARN 'sidecar payload has no bundled runtime: frozen engine only (CI build)'
       else
         fail "engine payload is not a Windows runtime: runtime/python.exe missing (rebuild on Windows with the project Python)" 1
@@ -175,7 +175,7 @@ case "$OS" in
   macos|linux)
     FROZEN="$(find "$ENGINE_DIR/frozen" -type f -name 'nlvo-engine' 2>/dev/null | head -n 1)"
     if [ ! -x "$ENGINE_DIR/runtime/bin/python3" ]; then
-      if [ "$(json_nested "$ENGINE_MANIFEST" runtime)" = "false" ]; then
+      if [ "$(json_get "$ENGINE_MANIFEST" runtime)" = "false" ]; then
         log WARN 'sidecar payload has no bundled runtime: frozen engine only (CI build)'
       else
         fail "engine payload runtime/bin/python3 missing (rebuild the sidecar)" 1
@@ -358,5 +358,6 @@ log INFO "BUILD-INFO.json: $DIST/BUILD-INFO.json"
 log INFO "log: $LOG_FILE"
 [ "$SIGNED" -eq 0 ] && log WARN 'UNSIGNED build: OS trust warnings are expected; auto-update is disabled until a signing key is configured.'
 exit 0
+
 
 
