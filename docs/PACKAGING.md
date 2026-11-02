@@ -146,7 +146,7 @@ dist/1.0.0/
   NL-VO-Shield_1.0.0_macos-arm64.dmg
   NL-VO-Shield_1.0.0_macos-arm64.app.tar.gz
   NL-VO-Shield_1.0.0_linux-x64.deb
-  NL-VO-Shield_1.0.0_linux-x64.AppImage
+  NLVOShield_1.0.0_linux-x86_64.deb   (AppImage richiede FUSE/linuxdeploy: non generato nel container CI; vedi ACCEPTANCE)
   SHA256SUMS
   BUILD-INFO.json
 ```
@@ -214,3 +214,4 @@ node tooling/gen-icons.mjs --check
 bash -n tooling/bootstrap.sh && bash -n tooling/run.sh
 python -c "import yaml,glob; [yaml.safe_load(open(f, encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]"
 ```
+

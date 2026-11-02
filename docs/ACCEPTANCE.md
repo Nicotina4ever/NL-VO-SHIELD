@@ -72,3 +72,32 @@ Matrice tecnologie e decisioni: `docs/TECHNOLOGY_MATRIX.md`.
 
 **Regola mantenuta:** un watermark riuscito non prova difesa anti-clonazione; `protected` è dichiarato solo con tutti gli step richiesti eseguiti e verificati; il laboratorio non scarica e non installa nulla.
 
+---
+
+## Rilascio pubblico 1.0.0 — pubblicato
+
+**Release:** https://github.com/Nicotina4ever/NL-VO-SHIELD/releases/tag/v1.0.0
+(CI `Release` su tag `v1.0.0`: build Windows, macOS, Linux e publish = **success**.)
+
+| Artefatto | Dimensione | SHA-256 |
+|---|---:|---|
+| `NL-VO-Shield_1.0.0_windows-x64-setup.exe` | 41.294.764 B | `b1d1906404e6b8780c840e3505508550549625bae9920227b88806845d25fcfd` |
+| `NL-VO-Shield_1.0.0_windows-x64.msi` | 61.228.352 B | `54ee6ad0d08e622815185131ca32c448abe1546e8ebc8189cd25b9be54252201` |
+| `NLVOShield_1.0.0_linux-x86_64.deb` | 104.871.706 B | `9ffcbf0c11cb7e06a592ca7a73afed24c1b22b7250c6b7a30094a4fd10608f4a` |
+| `NLVOShield_1.0.0_macos-aarch64.dmg` | 59.356.614 B | `3bed78043ecf05e54ac21a81be22a87c0754b53e06acf992cd56851f9c833b5f` |
+| `NLVOShield_1.0.0_macos-aarch64.app.tar.gz` | 58.919.690 B | `ed62d86fd6c43e1d723b2021250aff888e6a417ba85573f3948399680e77113c` |
+
+- **Windows:** NSIS + MSI, sidecar nativo con `c2patool`; installazione silenziosa e avvio verificati
+  sulla macchina di sviluppo (vedi TEST C). Artefatti **non firmati**: SmartScreen può avvisare.
+- **macOS:** bundle `aarch64` (Apple Silicon) `.app`/`.dmg`, non firmato/notarizzato (niente certificati
+  Apple disponibili); Gatekeeper richiede l'apertura manuale la prima volta.
+- **Linux:** pacchetto `.deb` (`amd64`). **AppImage non incluso nella release CI**: linuxdeploy/FUSE
+  non funziona nel runner container; resta generabile localmente su una macchina con FUSE
+  (`bash tooling/package.sh --bundles appimage`). Limite dichiarato, non nascosto.
+- **Aggiornamenti:** auto-update disabilitato finché non viene configurata una chiave di firma
+  (`TAURI_SIGNING_PRIVATE_KEY`); la UI controlla la release GitHub e propone il download manuale.
+- `SHA256SUMS` e `BUILD-INFO.json` sono allegati alla release. Il `BUILD-INFO.json` allegato riflette
+  l'ultimo job matrix (macOS) perché gli artifact condividono il nome; i dati per piattaforma sono
+  comunque nei singoli manifest/sidecar e nei log CI.
+
+
