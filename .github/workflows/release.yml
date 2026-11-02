@@ -71,77 +71,16 @@ jobs:
           echo "NLVS_ENGINE_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
       - name: Provision c2patool (Windows, build-time, checksum verified)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $dir = "bin/c2patool/c2patool"
-          New-Item -ItemType Directory -Force -Path $dir | Out-Null
-          $url = "https://github.com/contentauth/c2patool/releases/download/v0.9.12/c2patool-v0.9.12-x86_64-pc-windows-msvc.zip"
-          $sha = "729be50407ca20ad72077a729c7e233b4ff8b37b57cd28bca24fd3d5ef5315d4"
-          $archive = Join-Path $env:TEMP "c2patool.zip"
-          Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing
-          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $sha) { throw "c2patool checksum mismatch: $actual" }
-          Expand-Archive -Path $archive -DestinationPath $dir -Force
-          $found = Get-ChildItem -Path $dir -Recurse -File -Filter "c2patool.exe" | Select-Object -First 1
-          $dest = Join-Path $dir "c2patool.exe"
-          if ($found.FullName -ne $dest) { Copy-Item $found.FullName $dest -Force }
-          & $dest --version
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/provision-c2patool.ps1
       - name: Provision c2patool (macOS/Linux, build-time, checksum verified)
         if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -u
-          dir="bin/c2patool/c2patool"
-          mkdir -p "$dir"
-          echo "runner: $RUNNER_OS $(uname -m) / $(uname -s)"
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            url="https://github.com/contentauth/c2patool/releases/download/v0.9.12/c2patool-v0.9.12-x86_64-unknown-linux-gnu.tar.gz"
-            sha="caa336747d5364e21e0eb7a307c108b6680b237ff8b8aa5ed94ab8e43d64214c"
-            curl -fsSL "$url" -o /tmp/c2patool.dl || { echo "::error::c2patool download failed"; exit 1; }
-            echo "$sha  /tmp/c2patool.dl" | sha256sum -c - || { echo "::error::c2patool checksum mismatch"; exit 1; }
-            tar -xzf /tmp/c2patool.dl -C "$dir" || { echo "::error::c2patool extraction failed"; exit 1; }
-          else
-            url="https://github.com/contentauth/c2patool/releases/download/v0.9.12/c2patool-v0.9.12-universal-apple-darwin.zip"
-            sha="37284ab259513e9ddc22797a3956af7abad9cb390ed4ff3c6acaa45c350bd255"
-            curl -fsSL "$url" -o /tmp/c2patool.dl || { echo "::error::c2patool download failed"; exit 1; }
-            echo "$sha  /tmp/c2patool.dl" | shasum -a 256 -c - || { echo "::error::c2patool checksum mismatch"; exit 1; }
-            unzip -q /tmp/c2patool.dl -d "$dir" || { echo "::error::c2patool extraction failed"; exit 1; }
-          fi
-          found="$(find "$dir" -type f -name 'c2patool*' -print -quit)"
-          if [ -z "$found" ]; then
-            echo "::error::c2patool binary not found after extraction"
-            find "$dir" -maxdepth 3 -type f | head -20
-            exit 1
-          fi
-          cp -f "$found" "$dir/c2patool"
-          chmod +x "$dir/c2patool"
-          file "$dir/c2patool" || true
-          if ! "$dir/c2patool" --version; then
-            echo "::error::c2patool --version failed on $RUNNER_OS"
-            if [ "$RUNNER_OS" = "Linux" ]; then ldd "$dir/c2patool" || true; else otool -L "$dir/c2patool" || true; fi
-            exit 1
-          fi
+        run: bash tooling/provision-c2patool.sh
       - name: Build engine sidecar (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $log = Join-Path $env:RUNNER_TEMP "sidecar-build.log"
-          pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/build-engine-sidecar.ps1 -SkipRuntime *>&1 |
-            Tee-Object -FilePath $log
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content $log -Tail 40 | ForEach-Object { Write-Host "::error::$_" }
-            exit 1
-          }
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/build-engine-sidecar.ps1 -SkipRuntime
       - name: Build engine sidecar (macOS/Linux)
         if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -u
-          log="$RUNNER_TEMP/sidecar-build.log"
-          if ! bash tooling/build-engine-sidecar.sh --skip-runtime 2>&1 | tee "$log"; then
-            tail -40 "$log" | while IFS= read -r line; do echo "::error::$line"; done
-            exit 1
-          fi
+        run: bash tooling/build-engine-sidecar.sh --skip-runtime
       - name: Build release bundles
         shell: bash
         run: |
@@ -228,3 +167,6 @@ jobs:
           generate_release_notes: true
           files: |
             release-assets/**
+
+
+
