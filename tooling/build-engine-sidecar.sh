@@ -124,6 +124,60 @@ find "$ENGINE_DIR" -mindepth 1 -maxdepth 1 ! -name '.gitkeep' -exec rm -rf {} +
 printf 'NL VO Shield generated engine payload - safe to delete and rebuild.\nDo not commit.\n' > "$MARKER"
 log OK "cleaned generated engine directory (kept .gitkeep)"
 
+# ------------------------------------------------------------- c2patool
+# C2PA provenance needs the upstream c2patool CLI inside the payload. Copied from
+# the development workspace with its Apache-2.0 license; never downloaded at runtime.
+log STEP 'step 1b/6 - bundling c2patool (C2PA CLI) with its license'
+C2PA_TOOL=""
+C2PA_VERSION=""
+C2PA_SHA=""
+WORKSPACE_ROOT="$(cd "$ROOT/.." && pwd -P)"
+C2PA_CANDIDATES=()
+[ -n "${NLVS_C2PATOOL:-}" ] && C2PA_CANDIDATES+=("$NLVS_C2PATOOL")
+C2PA_CANDIDATES+=(
+  "$WORKSPACE_ROOT/bin/c2patool/c2patool/c2patool"
+  "$WORKSPACE_ROOT/bin/c2patool/c2patool"
+  "$ROOT/bin/c2patool/c2patool/c2patool"
+  "$ROOT/bin/c2patool/c2patool"
+)
+C2PA_SOURCE=""
+for candidate in "${C2PA_CANDIDATES[@]}"; do
+  if [ -n "$candidate" ] && [ -f "$candidate" ] && [ -x "$candidate" ]; then C2PA_SOURCE="$candidate"; break; fi
+done
+if [ -n "$C2PA_SOURCE" ]; then
+  mkdir -p "$ENGINE_DIR/bin/c2patool"
+  cp -f "$C2PA_SOURCE" "$ENGINE_DIR/bin/c2patool/c2patool"
+  chmod +x "$ENGINE_DIR/bin/c2patool/c2patool"
+  C2PA_TOOL="$ENGINE_DIR/bin/c2patool/c2patool"
+  C2PA_SHA="$("sha256sum" "$C2PA_TOOL" 2>/dev/null | awk '{print $1}')"
+  [ -n "$C2PA_SHA" ] || C2PA_SHA="$(shasum -a 256 "$C2PA_TOOL" 2>/dev/null | awk '{print $1}')"
+  set +e
+  C2PA_VERSION_OUT="$("$C2PA_TOOL" --version 2>&1)"
+  C2PA_VER_EXIT=$?
+  set -e
+  if [ "$C2PA_VER_EXIT" -eq 0 ]; then
+    C2PA_VERSION="$(printf '%s' "$C2PA_VERSION_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)"
+  fi
+  if [ -f "$ROOT/tooling/third-party/c2patool-LICENSE-APACHE.txt" ]; then
+    cp -f "$ROOT/tooling/third-party/c2patool-LICENSE-APACHE.txt" "$ENGINE_DIR/bin/c2patool/LICENSE-APACHE.txt"
+  fi
+  cat > "$ENGINE_DIR/THIRD-PARTY-NOTICES.txt" <<NOTICE
+NL VO Shield - third-party notices
+==================================
+
+c2patool $C2PA_VERSION
+  Upstream: https://github.com/contentauth/c2patool (c2pa-rs)
+  License:  Apache License 2.0 (see bin/c2patool/LICENSE-APACHE.txt)
+  Binary:   bin/c2patool/c2patool
+  SHA-256:  $C2PA_SHA
+  Purpose:  C2PA Content Credentials signing/verification for audio files.
+  Notes:    Redistributed unmodified. C2PA proves signature integrity, not legal identity.
+NOTICE
+  log OK "c2patool $C2PA_VERSION bundled (sha256 ${C2PA_SHA:0:12}...)"
+else
+  log WARN 'c2patool not found in the development workspace: the C2PA engine will be unavailable in this payload (honest, not simulated).'
+fi
+
 BASE_REQ="$ENGINE_SRC/requirements.txt"
 OPTIONAL_REQ="$ENGINE_SRC/requirements-optional.txt"
 SITE_ROOT=""
@@ -259,13 +313,38 @@ check_rpc() {
   set -e
   if printf '%s' "$out" | grep -q '"result"'; then HEALTH_OK=$((HEALTH_OK + 1)); log OK "$desc: $out"; else log WARN "$desc FAILED: ${out:-no response}"; fi
 }
+check_doctor_c2pa() {
+  local exe="$1" regargs="$2" desc="$3" json tool_status engine_status out
+  HEALTH_TOTAL=$((HEALTH_TOTAL + 1))
+  local data_dir="$ROOT/.local/tmp/doctor-c2pa"
+  mkdir -p "$data_dir"
+  set +e
+  if command -v timeout >/dev/null 2>&1; then
+    out="$(NLVS_C2PATOOL="$ENGINE_DIR/bin/c2patool/c2patool" NLVS_DATA_DIR="$data_dir" \
+      timeout 90 "$exe" $regargs doctor --json --data-dir "$data_dir" 2>&1)"
+  else
+    out="$(NLVS_C2PATOOL="$ENGINE_DIR/bin/c2patool/c2patool" NLVS_DATA_DIR="$data_dir" \
+      "$exe" $regargs doctor --json --data-dir "$data_dir" 2>&1)"
+  fi
+  set -e
+  json="$(printf '%s' "$out" | sed -n '/^{/,$p' | head -n 400)"
+  tool_status="$(printf '%s' "$json" | grep -A2 '"tool.c2patool"' | grep -o '"status": "[a-z]*"' | head -n 1 | sed 's/.*: "//;s/"//')"
+  engine_status="$(printf '%s' "$json" | tr -d '\n ' | grep -o '"id":"c2pa"[^}]*"status":"[a-z]*"' | grep -o '"status":"[a-z]*"' | head -n 1 | sed 's/.*"//;s/"//')"
+  if [ "$tool_status" = "ok" ] && [ "$engine_status" = "available" ]; then
+    HEALTH_OK=$((HEALTH_OK + 1)); log OK "$desc: tool.c2patool=ok; c2pa=available"
+  else
+    log WARN "$desc FAILED: tool.c2patool=${tool_status:-unknown}; c2pa=${engine_status:-unknown}"
+  fi
+}
 if [ "$SKIP_RUNTIME" -eq 0 ]; then
   check_cli "$RUNTIME_PY" '-m nl_vo_shield.cli' 'bundled runtime CLI (--version)'
   check_rpc "$RUNTIME_PY" '-m nl_vo_shield.rpc' 'bundled runtime RPC health'
+  [ -n "$C2PA_TOOL" ] && check_doctor_c2pa "$RUNTIME_PY" '-m nl_vo_shield.cli' 'bundled runtime doctor (c2patool + C2PA)'
 fi
 if [ -n "$FROZEN_EXE" ]; then
   check_cli "$FROZEN_EXE" '' 'frozen engine CLI (--version)'
   check_rpc "$FROZEN_EXE" '--rpc' 'frozen engine RPC health'
+  [ -n "$C2PA_TOOL" ] && check_doctor_c2pa "$FROZEN_EXE" '' 'frozen engine doctor (c2patool + C2PA)'
 fi
 [ "$HEALTH_TOTAL" -gt 0 ] && [ "$HEALTH_OK" -eq 0 ] && fail "no sidecar entry point passed a health check" 3
 
@@ -292,6 +371,8 @@ cat > "$ENGINE_DIR/build-manifest.json" <<JSON
   "runtime": $RUNTIME_JSON,
   "pyinstaller": $PYI_JSON,
   "python": {"source": "$PYTHON_KIND", "version": "$("$PYTHON" -c 'import sys; print(sys.version.split()[0])')"},
+  "c2patool": {"bundled": $([ -n "$C2PA_TOOL" ] && echo true || echo false), "version": "$C2PA_VERSION", "sha256": "$C2PA_SHA", "path": "bin/c2patool/c2patool", "license": "Apache-2.0"},
+  "third_party_notices": "THIRD-PARTY-NOTICES.txt",
   "requirements_sha256": "$REQ_HASH",
   "health_ok": $HEALTH_OK,
   "health_total": $HEALTH_TOTAL,

@@ -190,6 +190,56 @@ Write-Log STEP 'step 1/6 - cleaning the generated engine directory'
 try { Reset-EngineDir -Dir $engineDir -MarkerPath $marker -ForceClean:$Force } catch { Fail $_.Exception.Message 1 }
 Set-Content -LiteralPath $marker -Value "NL VO Shield generated engine payload - safe to delete and rebuild.`nDo not commit." -Encoding ASCII
 
+# ------------------------------------------------------------- c2patool
+# C2PA provenance needs the upstream c2patool CLI inside the payload. It is not a
+# model and it is not downloaded at runtime: it is copied from the development
+# workspace with its Apache-2.0 license and recorded in the build manifest.
+Write-Log STEP 'step 1b/6 - bundling c2patool (C2PA CLI) with its license'
+$c2paToolPath = $null
+$c2paToolVersion = ''
+$c2paToolSha = ''
+$c2paToolVersionOutput = ''
+$workspaceRoot = Split-Path -Parent $root
+$c2paCandidates = New-Object System.Collections.Generic.List[string]
+if ($env:NLVS_C2PATOOL) { $c2paCandidates.Add($env:NLVS_C2PATOOL) }
+$c2paCandidates.Add((Join-Path $workspaceRoot 'bin\c2patool\c2patool\c2patool.exe'))
+$c2paCandidates.Add((Join-Path $workspaceRoot 'bin\c2patool\c2patool.exe'))
+$c2paCandidates.Add((Join-Path $root 'bin\c2patool\c2patool\c2patool.exe'))
+$c2paSource = $null
+foreach ($candidate in $c2paCandidates) {
+  if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { $c2paSource = (Resolve-Path -LiteralPath $candidate).Path; break }
+}
+if ($c2paSource) {
+  $c2paBinDir = Join-Path $engineDir 'bin\c2patool'
+  New-Item -ItemType Directory -Force -Path $c2paBinDir | Out-Null
+  $c2paToolPath = Join-Path $c2paBinDir 'c2patool.exe'
+  Copy-Item -LiteralPath $c2paSource -Destination $c2paToolPath -Force
+  $c2paToolSha = (Get-FileHash -LiteralPath $c2paToolPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { $c2paToolVersionOutput = ((& $c2paToolPath --version 2>&1 | Out-String).Trim()); $c2paVerExit = $LASTEXITCODE } finally { $ErrorActionPreference = $prev }
+  if ($c2paVerExit -eq 0 -and $c2paToolVersionOutput -match '(\d+\.\d+\.\d+)') { $c2paToolVersion = $Matches[1] }
+  $licenseSrc = Join-Path $root 'tooling\third-party\c2patool-LICENSE-APACHE.txt'
+  if (Test-Path -LiteralPath $licenseSrc -PathType Leaf) {
+    Copy-Item -LiteralPath $licenseSrc -Destination (Join-Path $c2paBinDir 'LICENSE-APACHE.txt') -Force
+  }
+  $notice = @"
+NL VO Shield - third-party notices
+==================================
+
+c2patool $c2paToolVersion
+  Upstream: https://github.com/contentauth/c2patool (c2pa-rs)
+  License:  Apache License 2.0 (see bin/c2patool/LICENSE-APACHE.txt)
+  Binary:   bin/c2patool/c2patool.exe
+  SHA-256:  $c2paToolSha
+  Purpose:  C2PA Content Credentials signing/verification for audio files.
+  Notes:    Redistributed unmodified. C2PA proves signature integrity, not legal identity.
+"@
+  Set-Content -LiteralPath (Join-Path $engineDir 'THIRD-PARTY-NOTICES.txt') -Value $notice -Encoding UTF8
+  Write-Log OK "c2patool $c2paToolVersion bundled ($([math]::Round((Get-Item -LiteralPath $c2paToolPath).Length / 1MB, 1)) MB, sha256 $($c2paToolSha.Substring(0, 12))...)"
+} else {
+  Write-Log WARN 'c2patool not found in the development workspace: the C2PA engine will be unavailable in this payload (honest, not simulated).'
+}
+
 $baseReq = Join-Path $engineSrc 'requirements.txt'
 $optionalReq = Join-Path $engineSrc 'requirements-optional.txt'
 $siteRoot = $null
@@ -351,15 +401,53 @@ function Test-RpcHealth {
   }
 }
 
+function Test-DoctorC2pa {
+  param([string]$Exe, [string]$ModuleArguments, [string]$C2paTool, [string]$Description)
+  $dataDir = Join-Path $root '.local\tmp\doctor-c2pa'
+  New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+  $argList = @()
+  if ($ModuleArguments) { $argList += $ModuleArguments.Split(' ') }
+  $argList += @('doctor', '--json', '--data-dir', $dataDir)
+  $savedC2pa = $env:NLVS_C2PATOOL
+  $savedData = $env:NLVS_DATA_DIR
+  $env:NLVS_C2PATOOL = $C2paTool
+  $env:NLVS_DATA_DIR = $dataDir
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try {
+    $out = & $Exe @argList 2>&1
+    $code = $LASTEXITCODE
+  } finally {
+    $env:NLVS_C2PATOOL = $savedC2pa
+    $env:NLVS_DATA_DIR = $savedData
+    $ErrorActionPreference = $prev
+  }
+  $text = ($out | Out-String)
+  $idx = $text.IndexOf('{')
+  if ($idx -lt 0) { return @{ Description = $Description; Ok = $false; Output = "no JSON from doctor (exit $code): $($text.Trim())" } }
+  try { $json = $text.Substring($idx) | ConvertFrom-Json } catch {
+    return @{ Description = $Description; Ok = $false; Output = "doctor JSON parse failed: $($_.Exception.Message)" }
+  }
+  $checks = @($json.checks)
+  $tool = $checks | Where-Object { $_.id -eq 'tool.c2patool' } | Select-Object -First 1
+  $enginesCheck = $checks | Where-Object { $_.id -eq 'engines.status' } | Select-Object -First 1
+  $c2paEngine = $null
+  if ($enginesCheck -and $enginesCheck.engines) { $c2paEngine = @($enginesCheck.engines) | Where-Object { $_.id -eq 'c2pa' } | Select-Object -First 1 }
+  $ok = ($code -eq 0) -and ($tool.status -eq 'ok') -and ($c2paEngine.status -eq 'available')
+  $detail = "tool.c2patool=$($tool.status) ($($tool.detail)); c2pa=$($c2paEngine.status)"
+  return @{ Description = $Description; Ok = $ok; Output = $detail }
+}
+
 Write-Log STEP 'step 6/6 - sidecar health checks'
 if (-not $SkipRuntime) {
   $runtimePython = Join-Path $engineDir 'runtime\python.exe'
   $health += Test-SidecarCli -Exe $runtimePython -Arguments '-m nl_vo_shield.cli' -Description 'bundled runtime CLI (--version)'
   $health += Test-RpcHealth -Exe $runtimePython -Arguments '-m nl_vo_shield.rpc' -Description 'bundled runtime RPC health'
+  if ($c2paToolPath) { $health += Test-DoctorC2pa -Exe $runtimePython -ModuleArguments '-m nl_vo_shield.cli' -C2paTool $c2paToolPath -Description 'bundled runtime doctor (c2patool + C2PA)' }
 }
 if (-not $SkipPyInstaller -and $frozenExe) {
   $health += Test-SidecarCli -Exe $frozenExe -Description 'frozen engine CLI (--version)'
   $health += Test-RpcHealth -Exe $frozenExe -Arguments '--rpc' -Description 'frozen engine RPC health'
+  if ($c2paToolPath) { $health += Test-DoctorC2pa -Exe $frozenExe -ModuleArguments '' -C2paTool (Join-Path $engineDir 'bin\c2patool\c2patool.exe') -Description 'frozen engine doctor (c2patool + C2PA)' }
 }
 foreach ($item in $health) {
   if ($item.Ok) { Write-Log OK "$($item.Description): $($item.Output)" }
@@ -381,6 +469,8 @@ $manifest = [ordered]@{
   runtime = (-not $SkipRuntime)
   pyinstaller = (-not $SkipPyInstaller)
   python = @{ source = $pyKind; version = $pyVersion }
+  c2patool = @{ bundled = [bool]$c2paToolPath; version = $c2paToolVersion; sha256 = $c2paToolSha; path = 'bin/c2patool/c2patool.exe'; license = 'Apache-2.0' }
+  third_party_notices = 'THIRD-PARTY-NOTICES.txt'
   requirements_sha256 = $reqHash
   health = @($health | ForEach-Object { @{ description = $_.Description; ok = [bool]$_.Ok } })
   size_bytes = (Get-DirSize -Path $engineDir)

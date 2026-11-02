@@ -289,6 +289,10 @@ impl EngineManager {
         if let Some(root) = launch.project_root.as_ref() {
             command.env("NLVS_PROJECT_ROOT", root);
         }
+        if let Some(c2patool) = launch.c2patool.as_ref() {
+            // Binario incluso nel pacchetto: percorso assoluto passato al motore.
+            command.env("NLVS_C2PATOOL", c2patool);
+        }
         // Best effort: innocuo con interpreti isolati, utile con runtime standard.
         if !launch.module_roots.is_empty() {
             let mut parts: Vec<String> = launch
@@ -670,6 +674,7 @@ for line in sys.stdin:
             models_dir: dir.join("models"),
             cache_dir: dir.join("cache"),
             project_root: None,
+            c2patool: None,
         }
     }
 

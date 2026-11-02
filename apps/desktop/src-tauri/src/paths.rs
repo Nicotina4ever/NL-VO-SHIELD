@@ -162,6 +162,8 @@ pub struct EngineLaunch {
     pub cache_dir: PathBuf,
     pub project_root: Option<PathBuf>,
     pub module_roots: Vec<PathBuf>,
+    /// Binario c2patool incluso nel pacchetto (passato come NLVS_C2PATOOL).
+    pub c2patool: Option<PathBuf>,
 }
 
 impl EngineLaunch {
@@ -802,6 +804,24 @@ pub fn build_launch(app: &AppHandle, cfg: &HostConfig) -> NlResult<EngineLaunch>
         .or_else(|| repo.clone())
         .unwrap_or_else(|| data_dir.clone());
 
+    // c2patool incluso nel pacchetto (T3 lo aggiunge al payload engine).
+    let c2patool = app.path().resource_dir().ok().and_then(|resource| {
+        let names = if cfg!(windows) {
+            ["c2patool.exe", "c2patool"]
+        } else {
+            ["c2patool", "c2patool.exe"]
+        };
+        for base in [resource.join("engine").join("bin").join("c2patool")] {
+            for name in names {
+                let candidate = base.join(name);
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+        None
+    });
+
     Ok(EngineLaunch {
         entry: plan.entry,
         source: plan.source,
@@ -811,5 +831,6 @@ pub fn build_launch(app: &AppHandle, cfg: &HostConfig) -> NlResult<EngineLaunch>
         cache_dir,
         project_root: repo,
         module_roots,
+        c2patool,
     })
 }

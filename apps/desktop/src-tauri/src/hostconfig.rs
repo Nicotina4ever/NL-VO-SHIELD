@@ -1,8 +1,10 @@
 //! Configurazione host persistita (preferenze UI, percorsi, cache aggiornamenti).
 //!
-//! Separata dalla cartella dati: vive in `app_config_dir`, così la modalità
-//! portable e la scelta dei percorsi restano valide prima che la cartella dati
-//! sia stata risolta.
+//! Il file vive in `<install>/data/settings.json` (regola di prodotto: tutto
+//! dentro la cartella dell'installazione). Solo se quella cartella non è
+//! scrivibile, il puntatore alla cartella dati scelta viene salvato in
+//! `%LOCALAPPDATA%/NL-VO-Shield/settings.json` — mai dati, modelli o cache.
+//! Non viene mai usata `%APPDATA%` (Roaming).
 
 use crate::error::NlResult;
 use serde::{Deserialize, Serialize};

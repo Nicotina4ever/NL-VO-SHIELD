@@ -106,7 +106,7 @@ Write-Log INFO 'NL VO Shield - package'
 Write-Log INFO "repo root: $root"
 
 if (-not (Test-Path -LiteralPath $confPath -PathType Leaf)) { Fail "Tauri config missing: $confPath (apps/desktop shell not ready)" 2 }
-$conf = Get-Content -LiteralPath $confPath -Raw | ConvertFrom-Json
+$conf = Get-Content -LiteralPath $confPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $product = [string]$conf.productName
 if ([string]::IsNullOrWhiteSpace($product)) { $product = 'NL VO Shield' }
 $version = [string]$conf.version
@@ -223,6 +223,18 @@ if ($modelFiles.Count -gt 0) {
 }
 if ($WithAudioSeal -and -not [bool]$engineManifest.with_audio_seal) {
   Fail 'WithAudioSeal requested but the existing engine payload was built without AudioSeal' 1
+}
+$c2paPayload = Join-Path $engineDir 'bin\c2patool\c2patool.exe'
+$c2paManifest = $engineManifest.c2patool
+if (Test-Path -LiteralPath $c2paPayload -PathType Leaf) {
+  if (-not (Test-Path -LiteralPath (Join-Path $engineDir 'THIRD-PARTY-NOTICES.txt') -PathType Leaf)) {
+    Fail 'engine payload bundles c2patool but THIRD-PARTY-NOTICES.txt is missing' 1
+  }
+  Write-Log OK ("c2patool bundled: version {0}, sha256 {1}" -f $c2paManifest.version, ([string]$c2paManifest.sha256).Substring(0, 12))
+} elseif ($c2paManifest -and $c2paManifest.bundled) {
+  Fail 'engine manifest says c2patool is bundled but bin\c2patool\c2patool.exe is missing' 1
+} else {
+  Write-Log WARN 'c2patool is NOT bundled: the C2PA engine will be unavailable in this installer (honest limitation).'
 }
 Write-Log OK ("engine payload: Windows runtime + {0} frozen executable(s), {1} MB, no models/audio, provenance {2} {3}" -f `
     $frozenExes.Count, [math]::Round(((Get-ChildItem -LiteralPath $engineDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1), `
@@ -374,7 +386,7 @@ $buildInfo = [ordered]@{
   models_bundled = $false
   models_location = '<install dir>\data\models (portable by default; the app asks for a folder if the install dir is not writable; no %APPDATA% data)'
   data_dir_policy = 'install'
-  sidecar = @{ platform = [string]$engineManifest.platform; python = $engineManifest.python; runtime = [bool]$engineManifest.runtime; pyinstaller = [bool]$engineManifest.pyinstaller }
+  sidecar = @{ platform = [string]$engineManifest.platform; python = $engineManifest.python; runtime = [bool]$engineManifest.runtime; pyinstaller = [bool]$engineManifest.pyinstaller; c2patool = $engineManifest.c2patool }
   artifacts = @($artifacts | ForEach-Object { @{ file = $_.File; bytes = $_.Bytes; sha256 = (Get-FileHash -LiteralPath (Join-Path $dist $_.File) -Algorithm SHA256).Hash.ToLowerInvariant() } })
   artifacts_bytes = ($artifacts | Measure-Object -Property Bytes -Sum).Sum
 }

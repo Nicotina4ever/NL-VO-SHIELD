@@ -175,6 +175,16 @@ esac
 [ "${FOREIGN:-0}" -eq 0 ] || fail "engine payload contains foreign-platform binaries ($FOREIGN files); rebuild the native sidecar" 1
 MODEL_COUNT="$(find "$ENGINE_DIR" -type f \( -name '*.pth' -o -name '*.pt' -o -name '*.onnx' -o -name '*.safetensors' -o -name '*.gguf' -o -name '*.ckpt' -o -name '*.wav' -o -name '*.mp3' -o -name '*.flac' -o -name '*.m4a' \) ! -path '*/site-packages/*' 2>/dev/null | wc -l)"
 [ "$MODEL_COUNT" -eq 0 ] || fail "engine payload contains model/audio payloads ($MODEL_COUNT files); the base package must ship no models" 1
+C2PA_BUNDLED="$(json_nested "$ENGINE_MANIFEST" c2patool bundled)"
+C2PA_BIN="$ENGINE_DIR/bin/c2patool/c2patool"
+if [ -x "$C2PA_BIN" ]; then
+  [ -f "$ENGINE_DIR/THIRD-PARTY-NOTICES.txt" ] || fail 'engine payload bundles c2patool but THIRD-PARTY-NOTICES.txt is missing' 1
+  log OK "c2patool bundled ($("$C2PA_BIN" --version 2>/dev/null | head -n 1))"
+elif [ "$C2PA_BUNDLED" = "true" ]; then
+  fail 'engine manifest says c2patool is bundled but bin/c2patool/c2patool is missing' 1
+else
+  log WARN 'c2patool is NOT bundled: the C2PA engine will be unavailable in this installer (honest limitation).'
+fi
 ENGINE_SIZE_MB=$(( $(du -sk "$ENGINE_DIR" | awk '{print $1}') / 1024 ))
 log OK "engine payload: native $TARGET runtime + frozen executable, ${ENGINE_SIZE_MB} MB, no models/audio, provenance ${ENGINE_PY_SOURCE:-unknown}"
 
@@ -278,7 +288,7 @@ HOMEPAGE='https://www.nicolalanci.com'
 CONTACT='info@nicolalanci.com'
 REPO_URL='https://github.com/Nicotina4ever/NL-VO-SHIELD'
 MODELS_LOCATION='<install dir>/data/models (portable by default; the app asks for a folder if the install dir is not writable; no %APPDATA% data)'
-SIDECAR_JSON="$(node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(JSON.stringify({platform:m.platform,python:m.python,runtime:m.runtime,pyinstaller:m.pyinstaller}))' "$ENGINE_MANIFEST")"
+SIDECAR_JSON="$(node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(JSON.stringify({platform:m.platform,python:m.python,runtime:m.runtime,pyinstaller:m.pyinstaller,c2patool:m.c2patool}))' "$ENGINE_MANIFEST")"
 TOTAL_BYTES=0
 for f in "${ARTIFACTS[@]}"; do
   if stat -c %s "$DIST/$f" >/dev/null 2>&1; then s=$(stat -c %s "$DIST/$f"); else s=$(stat -f %z "$DIST/$f"); fi
