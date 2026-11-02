@@ -20,9 +20,10 @@ __all__ = [
 
 ENGINE_NAME = "NL VO Shield Engine"
 APP_ID = "nl-vo-shield"
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 # JSON-RPC stdio protocol version implemented by nl_vo_shield.rpc
 PROTOCOL_VERSION = 1
+
 
 

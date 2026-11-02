@@ -128,17 +128,9 @@ fn ensure_data_structure(data_dir: &Path) -> NlResult<()> {
 /// `%LOCALAPPDATA%/NL-VO-Shield/settings.json` — SOLO per il puntatore, mai i dati.
 /// Non viene mai usata `%APPDATA%` (Roaming) né una data dir globale.
 pub fn resolve_config_path(install_dir: &Path) -> PathBuf {
-    let install_data = install_dir.join("data");
-    if is_dir_writable(&install_data) {
-        return install_data.join("settings.json");
-    }
-    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        let dir = PathBuf::from(local_app_data).join("NL-VO-Shield");
-        if std::fs::create_dir_all(&dir).is_ok() {
-            return dir.join("settings.json");
-        }
-    }
-    install_data.join("settings.json")
+    // Regola di prodotto: nessun dato (nemmeno il file di preferenze) fuori
+    // dalla cartella di installazione. Niente fallback su %LOCALAPPDATA%/%APPDATA%.
+    install_dir.join("data").join("settings.json")
 }
 
 /// Come avviare il processo del motore.
@@ -834,3 +826,4 @@ pub fn build_launch(app: &AppHandle, cfg: &HostConfig) -> NlResult<EngineLaunch>
         c2patool,
     })
 }
+
