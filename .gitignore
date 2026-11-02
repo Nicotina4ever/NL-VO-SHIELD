@@ -115,3 +115,9 @@ Desktop.ini
 .DS_Store
 *.log
 *.tmp
+
+# Python packaging artifacts
+*.egg-info/
+packages/engine/build/
+packages/engine/dist/
+*.spec

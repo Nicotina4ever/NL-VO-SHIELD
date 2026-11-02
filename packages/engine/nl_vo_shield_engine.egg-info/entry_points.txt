@@ -1,2 +1,0 @@
-[console_scripts]
-nlvs = nl_vo_shield.cli:main
