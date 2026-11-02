@@ -1,6 +1,6 @@
 # NL VO Shield — Architettura e contratto di integrazione
 
-**Missione:** `K:\AI\VoiceShield_2026\NL-VO-SHIELD-MISSIONE-COMPLETA\MISSIONE_MASTER.md` (fonte unica di verità).
+**Missione:** `MISSIONE_MASTER.md` fornito con il progetto (fonte unica di verità).
 Questo documento è il **contratto tecnico** tra i moduli: non è una roadmap.
 
 ## 1. Struttura del repository pubblico
@@ -22,15 +22,15 @@ NL-VO-SHIELD/                      <-- unico root Git pubblico
 └── .local/                        <-- runtime/venv/cache SVILUPPO (ignorato da Git)
 ```
 
-Fuori dal repo (mai tracciati): `K:\AI\VoiceShield_2026\python_win` (Python di progetto),
-`_PRIVATE_RESEARCH_LAB`, `NL-VO-SHIELD-MISSIONE-COMPLETA`, `da_eliminare`, dati legacy.
+Fuori dal repo (mai tracciati): la distribuzione Python di progetto nel dev root, il laboratorio
+privato, la cartella di missione, la quarantena e i dati legacy.
 
 ## 2. Python: regole vincolanti
 
-- **Interprete di progetto (dev):** `..\python_win\python.exe` rispetto al repo (Python 3.11.9, embedded).
+- **Interprete di progetto (dev):** distribuzione Python embedded nel dev root, accanto al repo (Python 3.11).
   - Non esiste `venv`/`ensurepip` in questa distribuzione: non creare venv.
   - `pip` è stato riparato con `get-pip.py` incluso; le dipendenze del motore si installano **in questo interprete**.
-- **Fallback di sviluppo:** `.local/runtime/<os>-<arch>/` (python-build-standalone) usato solo se `python_win` non esiste.
+- **Fallback di sviluppo:** `.local/runtime/<os>-<arch>/` (python-build-standalone) usato solo se la distribuzione Python di progetto non esiste.
 - **Mai** `python`/`py`/`pip` dal PATH, **mai** Python di sistema, **mai** `PATH` globale modificato.
 - **Nessun percorso assoluto** in codice/config/script: la radice si scopre risalendo dal file/`__file__`
   o da variabile d'ambiente (`NLVS_PROJECT_ROOT`, `NLVS_ENGINE_PYTHON`) passata dalla shell Rust.
@@ -42,17 +42,19 @@ Fuori dal repo (mai tracciati): `K:\AI\VoiceShield_2026\python_win` (Python di p
 1. `NLVS_ENGINE_PYTHON` (path a un eseguibile Python) — usato in sviluppo e dai test.
 2. Bundle Tauri: `<resource_dir>/engine/runtime/python.exe` (Windows) /
    `<resource_dir>/engine/runtime/bin/python3` (macOS/Linux).
-3. Dev fallback relativo: `../python_win/python.exe` rispetto al repo.
+3. Dev fallback relativo: la distribuzione Python di progetto rispetto al repo.
 4. `.local/runtime/<os>-<arch>/python[.exe]`.
 5. Errore esplicito `ENGINE_PYTHON_NOT_FOUND` (nessun fallback al PATH).
 
 ## 3. Protocollo Engine (JSON-RPC 2.0 su stdio, NDJSON)
 
 Trasporto: una richiesta/risposta JSON per riga su **stdout**; log solo su **stderr**.
-Il pacchetto Python si avvia con:
+Il Python di progetto è una distribuzione **isolata** (`sys.flags.isolated=1`): `PYTHONPATH`
+e `-m` non sono affidabili. Il pacchetto si avvia con i launcher dedicati:
 
 ```bash
-"%NLVS_ENGINE_PYTHON%" -m nl_vo_shield.rpc --data-dir "<data-dir>"
+"%NLVS_ENGINE_PYTHON%" "<repo>/packages/engine/nlvs_rpc.py" --data-dir "<data-dir>"
+"%NLVS_ENGINE_PYTHON%" "<repo>/packages/engine/nlvs_engine.py" doctor --json
 ```
 
 - `id` numerico o stringa, echo nella risposta.
@@ -170,11 +172,31 @@ SafeSpeech: pesi incompleti ⇒ `unavailable` con reason esplicita (BLOCKER docu
 
 ## 6. Dati e sicurezza
 
-- Dati utente (ricevute, profili, preset, chiavi) in `<app_data>/NL VO Shield/` (Tauri) o
-  `--data-dir` passato dal Rust; in portable mode accanto all'eseguibile solo se scrivibile.
+- Dati utente (ricevute, profili, preset, chiavi, output) in `<install>/data/` **dentro la cartella
+  dell'installazione** (default portable) oppure in una cartella scelta esplicitamente dall'utente;
+  mai `%APPDATA%`, `~/.cache` o altre directory globali come default. Se la cartella non è scrivibile
+  l'app chiede una destinazione: nessun fallback silenzioso.
 - Chiavi C2PA: generate/importate dall'utente in data dir; **mai** nel repository.
 - Scrittura atomica: temp nella dir del job + `os.replace`; cleanup solo dei propri temp.
 - Nessun download automatico: engine mancante ⇒ errore/istruzioni, non fetch silenzioso.
+
+## 6.1 Modelli, cache e aggiornamenti (requisito committente)
+
+- **Tutto nella cartella del progetto/installazione:** pesi e cache vanno in `<data_dir>/models` e
+  `<data_dir>/cache`; la `<data_dir>` è `<install>/data` (default portable, dentro l'installazione)
+  o una cartella scelta dall'utente. Mai cache globali (`~/.cache`, `%LOCALAPPDATA%` di
+  altri tool, `HF_HOME`/`TORCH_HOME` di sistema): l'engine forza `TORCH_HOME`, `HF_HOME`,
+  `HF_HUB_CACHE`, `XDG_CACHE_HOME` prima di importare torch/audioseal/huggingface_hub.
+- **Nessun download automatico:** `models.download` parte solo su azione esplicita dell'utente,
+  con progress, checksum e destinazione nella cartella del progetto. `models.delete`/`models.prune`
+  e `cache.clear` rimuovono solo materiali propri dell'app; riscaricabili in seguito.
+- **Settings UI:** percorsi models_dir/cache_dir, dimensione, elenco pesi presenti/assenti,
+  scarica/elimina/pulisci cache/riscarica. La pagina Motori indica per ogni engine se i pesi ci sono.
+- **Aggiornamenti futuri via repo GitHub:** Tauri updater configurato su GitHub Releases
+  (`https://github.com/Nicotina4ever/NL-VO-SHIELD`) con firma; se la chiave pubblica non è
+  configurata, l'app mostra solo controllo versione/note/link (nessun download silenzioso).
+  La release CI firma i bundle solo con `TAURI_SIGNING_PRIVATE_KEY` nei secrets; altrimenti
+  artefatti non firmati e auto-update dichiarato disabilitato.
 
 ## 7. Test di accettazione (solo 4, vedi master §8)
 
@@ -188,5 +210,5 @@ Risultati in `docs/ACCEPTANCE.md` (creato dal Lead) con PASS/FAIL/NOT_RUN/BLOCKE
 | `packages/engine/**`, `packages/engine/requirements*.txt` | engine-core |
 | `apps/desktop/**` (UI + Rust) | desktop-tauri |
 | `tooling/**`, `.github/**`, `README.md`, `assets/icons/**` | tooling-packaging |
-| `_PRIVATE_RESEARCH_LAB/**` (fuori repo) | private-lab |
+| laboratorio privato (fuori repo) | private-lab |
 | `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, integrazione, git | Lead |

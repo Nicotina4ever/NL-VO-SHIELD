@@ -44,7 +44,18 @@ artifacts/
 *.flatpak
 *.tar.gz
 *.zip
+*.sha256
+SHA256SUMS
+latest.json
+*.sig
 !assets/**/*.svg
+
+# Sidecar Python generato da tooling/build-engine-sidecar.* (mai committare)
+apps/desktop/src-tauri/engine/*
+!apps/desktop/src-tauri/engine/.gitkeep
+
+# Dipendenze del tooling Node (solo sviluppo)
+tooling/node_modules/
 
 # Motori, modelli e pesi: MAI nel repository
 models/

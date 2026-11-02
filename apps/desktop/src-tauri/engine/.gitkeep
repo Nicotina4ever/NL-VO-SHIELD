@@ -1,0 +1,3 @@
+# Placeholder: la cartella risorse "engine" viene popolata dal packaging
+# (runtime Python portatile + pacchetto nl_vo_shield). Serve solo a rendere
+# esistente la resource "engine" referenziata da tauri.conf.json.

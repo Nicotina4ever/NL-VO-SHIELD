@@ -1,0 +1,14 @@
+numpy>=1.23.5
+soundfile>=0.13
+scipy>=1.15
+cryptography>=42
+
+[ai]
+torch>=2.6
+torchaudio>=2.6
+audioseal>=0.2.0
+pyloudnorm>=0.2.0
+librosa>=0.10
+
+[dev]
+pytest>=8

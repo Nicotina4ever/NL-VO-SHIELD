@@ -1,0 +1,20 @@
+{
+  "name": "nl-vo-shield-tooling",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Build and release tooling for NL VO Shield (icon generation, leak guard). Not shipped in the app.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "icons": "node gen-icons.mjs",
+    "icons:check": "node gen-icons.mjs --check",
+    "leak-guard": "node leak-guard.mjs",
+    "leak-guard:selftest": "node leak-guard.mjs --self-test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "sharp": "^0.34.0"
+  }
+}

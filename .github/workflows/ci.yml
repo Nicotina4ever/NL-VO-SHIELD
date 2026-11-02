@@ -1,0 +1,213 @@
+name: CI
+
+# Build/test the public product only. The private research lab and any private
+# data are intentionally NOT part of this workflow (and are git-ignored).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ------------------------------------------------------------------ guards
+  guards:
+    name: Leak guard + icon check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Leak guard self-test
+        run: node tooling/leak-guard.mjs --self-test
+      - name: Leak guard (tracked/staged files)
+        run: node tooling/leak-guard.mjs
+      - name: Verify committed icons
+        run: node tooling/gen-icons.mjs --check
+
+  # ------------------------------------------------------------ python engine
+  engine-tests:
+    name: Engine tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+      # setup-python is for BUILD/TEST convenience only: the shipped product
+      # embeds its own runtime, it never depends on a system Python.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: packages/engine/requirements*.txt
+      - name: Install engine dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f packages/engine/requirements.txt ]; then
+            python -m pip install -r packages/engine/requirements.txt
+          fi
+          python -m pip install -e packages/engine
+          python -m pip install pytest
+      - name: Run engine tests
+        shell: bash
+        run: |
+          if [ ! -d packages/engine/tests ]; then
+            echo "::error::packages/engine/tests is missing"
+            exit 1
+          fi
+          python -m pytest packages/engine/tests -q
+
+  # ---------------------------------------------------------------- frontend
+  frontend:
+    name: Frontend build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Type check
+        run: npm run check
+      - name: Build frontend
+        run: npm run build
+
+  # --------------------------------------------------------------- rust host
+  cargo-check:
+    name: Rust check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Linux system dependencies (WebKitGTK/GTK)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file libssl-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Frontend build (Tauri context needs dist/)
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+      - name: cargo check
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+  # ------------------------------------------------------------ OS bundles
+  bundle:
+    name: Bundle (${{ matrix.os }})
+    needs: [engine-tests, cargo-check]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+        include:
+          - os: ubuntu-22.04
+            bundles: deb,appimage
+          - os: windows-latest
+            bundles: nsis,msi
+          - os: macos-14
+            bundles: dmg,app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      # setup-python here is ONLY used to run PyInstaller and assemble the
+      # sidecar payload; the shipped product does not require system Python.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: packages/engine/requirements*.txt
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Linux system dependencies (WebKitGTK/GTK)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file libssl-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Install engine build dependencies (PyInstaller only)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f packages/engine/requirements.txt ]; then
+            python -m pip install -r packages/engine/requirements.txt
+          fi
+          python -m pip install -e packages/engine
+          python -m pip install pyinstaller
+          echo "NLVS_ENGINE_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Build engine sidecar (Windows)
+        if: runner.os == 'Windows'
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/build-engine-sidecar.ps1
+      - name: Build engine sidecar (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: bash tooling/build-engine-sidecar.sh
+      - name: Build installer bundles
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/package.ps1 \
+              -Bundles "${{ matrix.bundles }}" -SkipSidecar
+          else
+            bash tooling/package.sh --bundles "${{ matrix.bundles }}" --skip-sidecar
+          fi
+      - name: Verify bundles contain no private material
+        shell: bash
+        run: node tooling/leak-guard.mjs --scan dist
+      - name: Show artifact sizes
+        shell: bash
+        run: |
+          find dist -type f -maxdepth 3 -printf '%s  %p\n' 2>/dev/null || find dist -type f -maxdepth 3 -exec ls -l {} +
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nlvoshield-${{ runner.os }}-${{ matrix.bundles }}
+          path: dist/**
+          if-no-files-found: error
+          retention-days: 14

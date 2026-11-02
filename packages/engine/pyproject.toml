@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nl-vo-shield-engine"
+version = "0.1.0"
+description = "NL VO Shield — local-first audio protection, watermark, C2PA provenance and verification engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.23.5",
+    "soundfile>=0.13",
+    "scipy>=1.15",
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+ai = [
+    "torch>=2.6",
+    "torchaudio>=2.6",
+    "audioseal>=0.2.0",
+    "pyloudnorm>=0.2.0",
+    "librosa>=0.10",
+]
+dev = ["pytest>=8"]
+
+[project.scripts]
+nlvs = "nl_vo_shield.cli:main"
+
+[tool.setuptools]
+packages = ["nl_vo_shield", "nl_vo_shield.engines"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

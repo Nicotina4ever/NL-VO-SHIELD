@@ -1,0 +1,40 @@
+# Normalizzazione fine di riga multi-OS: evita churn e script rotti in CI.
+* text=auto eol=lf
+
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+*.command text eol=lf
+*.py text eol=lf
+*.rs text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.svg text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# Binari
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.wav binary
+*.mp3 binary
+*.flac binary
+*.pth binary
+*.onnx binary
+*.exe binary
+*.dll binary
+*.dylib binary
+*.so binary

@@ -1,0 +1,10 @@
+# NL VO Shield - minimal development baseline.
+# Used by tooling/bootstrap.ps1 only if packages/engine/requirements.txt is not
+# available yet (e.g. while the engine module is still being written).
+# The engine package owns the authoritative dependency list.
+numpy>=1.23
+scipy>=1.10
+soundfile>=0.12
+librosa>=0.10
+cryptography>=41
+pyloudnorm>=0.1.1

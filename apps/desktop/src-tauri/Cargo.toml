@@ -1,0 +1,40 @@
+[package]
+name = "nl-vo-shield"
+version = "1.0.0"
+description = "NL VO Shield — desktop shell (Tauri 2) per il motore Python di protezione voce"
+authors = ["Nicola Lanci"]
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+[lib]
+name = "nl_vo_shield_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "sync", "time", "macros", "rt-multi-thread"] }
+thiserror = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+futures-util = "0.3"
+sha2 = "0.10"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+
+[profile.dev]
+# Il sidecar Python viene avviato in debug: nessuna ottimizzazione richiesta.
+incremental = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

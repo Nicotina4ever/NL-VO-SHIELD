@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "NL VO Shield",
+  "mainBinaryName": "nl-vo-shield",
+  "version": "1.0.0",
+  "identifier": "com.nicotina4ever.nlvoshield",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "NL VO Shield",
+        "width": 1380,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "resizable": true,
+        "center": true,
+        "dragDropEnabled": true,
+        "theme": "Dark",
+        "backgroundColor": "#0B0910"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost; media-src 'self' data: blob:; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "../../../assets/icons/32x32.png",
+      "../../../assets/icons/128x128.png",
+      "../../../assets/icons/128x128@2x.png",
+      "../../../assets/icons/icon.icns",
+      "../../../assets/icons/icon.ico"
+    ],
+    "resources": ["engine"],
+    "category": "Utility",
+    "publisher": "Nicola Lanci",
+    "copyright": "© 2026 Nicola Lanci",
+    "homepage": "https://www.nicolalanci.com",
+    "shortDescription": "Protezione anti-clonazione, watermark, provenance C2PA e verifica file audio.",
+    "longDescription": "NL VO Shield elabora registrazioni vocali in locale: perturbazione anti-clonazione, watermark AudioSeal, manifest C2PA, fingerprint e verifica. Nessun audio viene inviato a servizi esterni."
+  }
+}
