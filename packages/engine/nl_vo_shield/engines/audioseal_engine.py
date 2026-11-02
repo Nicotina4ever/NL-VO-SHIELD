@@ -82,7 +82,8 @@ class AudioSealEngine(BaseEngine):
         if not _has_module("torch"):
             return False, (
                 "torch is not installed in the engine runtime; install the optional AI stack "
-                "(requirements-optional.txt) to enable AudioSeal."
+                "(requirements-optional.txt) to enable AudioSeal. AudioSeal weights are then "
+                "downloaded only on explicit request (models download); no silent download happens."
             )
         if not _has_module("audioseal"):
             return False, (
