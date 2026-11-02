@@ -19,6 +19,7 @@
 #
 # Exit codes: 0 ok; 1 packaging failure; 2 prerequisite missing; 3 leak guard failed.
 set -euo pipefail
+export APPIMAGE_EXTRACT_AND_RUN=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BUNDLES=""
@@ -358,6 +359,8 @@ log INFO "BUILD-INFO.json: $DIST/BUILD-INFO.json"
 log INFO "log: $LOG_FILE"
 [ "$SIGNED" -eq 0 ] && log WARN 'UNSIGNED build: OS trust warnings are expected; auto-update is disabled until a signing key is configured.'
 exit 0
+
+
 
 
 
