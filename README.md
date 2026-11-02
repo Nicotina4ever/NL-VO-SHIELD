@@ -156,7 +156,7 @@ promises): a **watch folder** that protects exported files automatically, and a 
 action/script** that protects the exported take directly. The Python core already exposes the
 local CLI and RPC, so these will be thin wrappers over the same engine with the same
 fail-closed semantics.
-**Repository.** https://github.com/Nicotina4ever/NL-VO-SHIELD`n`n**Release 1.0.0.** https://github.com/Nicotina4ever/NL-VO-SHIELD/releases/tag/v1.0.0
+**Repository.** https://github.com/Nicotina4ever/NL-VO-SHIELD`n`n**Release 1.0.0.** https://github.com/Nicotina4ever/NL-VO-SHIELD/releases/latest
 
 ---
 
@@ -168,3 +168,4 @@ www.nicolalanci.com
 info@nicolalanci.com
 © 2026 Nicola Lanci — NL VO Shield
 Codice e release: github.com/Nicotina4ever/NL-VO-SHIELD · Nicotina4ever/NL-VO-SHIELD
+

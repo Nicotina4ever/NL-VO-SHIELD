@@ -1,4 +1,4 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
 .SYNOPSIS
   NL VO Shield - build the Windows engine sidecar payload.
@@ -205,6 +205,10 @@ if ($env:NLVS_C2PATOOL) { $c2paCandidates.Add($env:NLVS_C2PATOOL) }
 $c2paCandidates.Add((Join-Path $workspaceRoot 'bin\c2patool\c2patool\c2patool.exe'))
 $c2paCandidates.Add((Join-Path $workspaceRoot 'bin\c2patool\c2patool.exe'))
 $c2paCandidates.Add((Join-Path $root 'bin\c2patool\c2patool\c2patool.exe'))
+# CI provisioning (tooling/provision-c2patool.ps1) writes the binary directly to
+# <repo>\bin\c2patool\c2patool.exe; include it so the release payload always
+# bundles the C2PA CLI (regression fixed in v1.0.1).
+$c2paCandidates.Add((Join-Path $root 'bin\c2patool\c2patool.exe'))
 $c2paSource = $null
 foreach ($candidate in $c2paCandidates) {
   if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { $c2paSource = (Resolve-Path -LiteralPath $candidate).Path; break }
