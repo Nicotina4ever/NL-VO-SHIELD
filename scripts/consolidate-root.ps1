@@ -44,6 +44,7 @@ $LabName           = '_PRIVATE' + '_RESEARCH_LAB'
 $MissionInputName  = '_MISSION' + '_INPUT'
 $ProjectPythonName = 'python' + '_win'
 $ProfilesRel       = 'bin' + '\' + 'profiles'
+$MissionPackageName = 'NL-VO-SHIELD-' + 'MISSIONE-COMPLETA'
 
 $Repo = Join-Path $Root 'NL-VO-SHIELD'
 $Lab = Join-Path $Root $LabName
@@ -174,9 +175,9 @@ foreach ($item in $Plan) {
   Write-Host ("[{0}] {1} -> {2} ({3:N0} bytes)" -f $status, $item.Path, $dest.Substring($Root.Length).TrimStart('\'), $size)
 }
 
-$mission = Join-Path $Root 'NL-VO-SHIELD-MISSIONE-COMPLETA'
+$mission = Join-Path $Root $MissionPackageName
 if (Test-Path -LiteralPath $mission) {
-  $missionDest = Join-Path $MissionInput 'NL-VO-SHIELD-MISSIONE-COMPLETA'
+  $missionDest = Join-Path $MissionInput $MissionPackageName
   if (Test-Path -LiteralPath $missionDest) { $missionDest = "$missionDest.$(Get-Date -Format 'yyyyMMddHHmmss')" }
   if ($Apply) {
     New-Item -ItemType Directory -Force $MissionInput | Out-Null
@@ -184,10 +185,10 @@ if (Test-Path -LiteralPath $mission) {
     $status = 'moved'
   } else { $status = 'would-move' }
   $records += [pscustomobject]@{
-    original = 'NL-VO-SHIELD-MISSIONE-COMPLETA'; new_path = $missionDest; status = $status
+    original = $MissionPackageName; new_path = $missionDest; status = $status
     size_bytes = 0; sha256 = $null; reason = 'mission package relocated under its intended input folder'
   }
-  Write-Host ("[{0}] NL-VO-SHIELD-MISSIONE-COMPLETA -> {1}" -f $status, $missionDest)
+  Write-Host ("[{0}] {1} -> {2}" -f $status, $MissionPackageName, $missionDest)
 }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
