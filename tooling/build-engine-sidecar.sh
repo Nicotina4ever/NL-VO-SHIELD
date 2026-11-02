@@ -270,9 +270,13 @@ fi
 [ "$HEALTH_TOTAL" -gt 0 ] && [ "$HEALTH_OK" -eq 0 ] && fail "no sidecar entry point passed a health check" 3
 
 # -------------------------------------------------------------------- manifest
+# The manifest is shipped inside the installer resources: no absolute build-host
+# paths, no health payloads that embed data paths.
 REQ_HASH=""
 if [ -f "$BASE_REQ" ]; then
   if command -v sha256sum >/dev/null 2>&1; then REQ_HASH="$(sha256sum "$BASE_REQ" | awk '{print $1}')"; else REQ_HASH="$(shasum -a 256 "$BASE_REQ" | awk '{print $1}')"; fi
+elif [ -f "$ENGINE_SRC/pyproject.toml" ]; then
+  if command -v sha256sum >/dev/null 2>&1; then REQ_HASH="$(sha256sum "$ENGINE_SRC/pyproject.toml" | awk '{print $1}')"; else REQ_HASH="$(shasum -a 256 "$ENGINE_SRC/pyproject.toml" | awk '{print $1}')"; fi
 fi
 TOTAL_BYTES="$(du -sk "$ENGINE_DIR" | awk '{print $1 * 1024}')"
 RUNTIME_JSON='false'; [ "$SKIP_RUNTIME" -eq 0 ] && RUNTIME_JSON='true'
@@ -282,11 +286,12 @@ cat > "$ENGINE_DIR/build-manifest.json" <<JSON
 {
   "schema": 1,
   "product": "NL VO Shield",
+  "platform": "$TARGET",
   "generated_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "with_audio_seal": $AUDIO_JSON,
   "runtime": $RUNTIME_JSON,
   "pyinstaller": $PYI_JSON,
-  "python": {"source": "$PYTHON_KIND", "path": "$PYTHON", "version": "$("$PYTHON" -c 'import sys; print(sys.version.split()[0])')"},
+  "python": {"source": "$PYTHON_KIND", "version": "$("$PYTHON" -c 'import sys; print(sys.version.split()[0])')"},
   "requirements_sha256": "$REQ_HASH",
   "health_ok": $HEALTH_OK,
   "health_total": $HEALTH_TOTAL,

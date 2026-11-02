@@ -23,6 +23,19 @@ class QualityEngine(BaseEngine):
         "substitute for a blind listening test."
     )
 
+    description = (
+        "Objective audio measurements: sample/true peak, RMS, crest factor, clipping, LUFS, "
+        "spectral descriptors and SNR/spectral distance against a reference."
+    )
+    impact = "No audio modification; measurement only."
+    limitations = [
+        "Objective metrics only: not a blind listening test.",
+        "LUFS needs at least ~0.4 s of audio and is undefined for silence.",
+        "Does not measure perceived naturalness or clone resistance.",
+    ]
+    recommended_levels = ["light", "balanced", "strong"]
+    incompatible_with = []
+
     def __init__(self, context: Any) -> None:
         self.context = context
 

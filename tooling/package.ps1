@@ -183,6 +183,62 @@ if (-not $SkipSidecar) {
 $engineDir = Join-Path $tauriDir 'engine'
 if (-not (Test-Path -LiteralPath $engineDir -PathType Container)) { Fail "engine payload missing: $engineDir (run tooling\build-engine-sidecar.ps1)" 2 }
 
+# --------------------------------------- sidecar provenance + data policy
+Write-Log STEP 'step 3b/7 - sidecar provenance and portable-data policy checks'
+$engineManifestPath = Join-Path $engineDir 'build-manifest.json'
+if (-not (Test-Path -LiteralPath $engineManifestPath -PathType Leaf)) {
+  Fail "engine build manifest missing: $engineManifestPath (rebuild the sidecar)" 1
+}
+$engineManifest = Get-Content -LiteralPath $engineManifestPath -Raw | ConvertFrom-Json
+$runtimePy = Join-Path $engineDir 'runtime\python.exe'
+if (-not (Test-Path -LiteralPath $runtimePy -PathType Leaf)) {
+  Fail "engine payload is not a Windows runtime: runtime\python.exe missing (rebuild on Windows with the project Python)" 1
+}
+$frozenExes = @(Get-ChildItem -LiteralPath (Join-Path $engineDir 'frozen') -Recurse -File -Filter '*.exe' -ErrorAction SilentlyContinue)
+if ($frozenExes.Count -eq 0) { Fail 'engine payload has no Windows frozen executable (frozen\nlvo-engine\nlvo-engine.exe missing)' 1 }
+$foreignBins = @(Get-ChildItem -LiteralPath $engineDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
+    $_.Extension -in @('.so', '.dylib') -or $_.Name -like 'libpython*.so*'
+  })
+if ($foreignBins.Count -gt 0) {
+  Fail ("engine payload contains foreign/Unix binaries ({0} files, e.g. {1}); rebuild the native Windows sidecar" -f $foreignBins.Count, $foreignBins[0].Name) 1
+}
+$pythonPath = [string]$engineManifest.python.path
+$enginePlatform = [string]$engineManifest.platform
+if ($enginePlatform -and $enginePlatform -notlike 'windows*') {
+  Fail "engine payload platform '$enginePlatform' does not match Windows (rebuild the native sidecar)" 1
+}
+if ($pythonPath -match '^/mnt/' -or $pythonPath -match '^/home/' -or $pythonPath -match '^/Users/') {
+  Fail "engine manifest provenance is not a Windows developer path: $pythonPath (rebuild on Windows)" 1
+}
+if ($engineManifest.python.source -eq 'portable-runtime' -and $enginePlatform -ne 'windows-x64' -and $enginePlatform -ne 'windows-arm64') {
+  Fail 'engine payload provenance is ambiguous: rebuild the native Windows sidecar with the project Python' 1
+}
+$modelExtensions = @('.pth', '.pt', '.onnx', '.safetensors', '.gguf', '.wav', '.mp3', '.flac', '.npy', '.npz')
+$modelFiles = @(Get-ChildItem -LiteralPath $engineDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $modelExtensions -contains $_.Extension.ToLowerInvariant() })
+if ($modelFiles.Count -gt 0) {
+  Fail ("engine payload contains model/audio payloads ({0} files, e.g. {1}); the base package must ship no models" -f $modelFiles.Count, $modelFiles[0].Name) 1
+}
+if ($WithAudioSeal -and -not [bool]$engineManifest.with_audio_seal) {
+  Fail 'WithAudioSeal requested but the existing engine payload was built without AudioSeal' 1
+}
+Write-Log OK ("engine payload: Windows runtime + {0} frozen executable(s), {1} MB, no models/audio, provenance {2} {3}" -f `
+    $frozenExes.Count, [math]::Round(((Get-ChildItem -LiteralPath $engineDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1), `
+    $engineManifest.python.source, $engineManifest.python.version)
+
+$pathsRs = Join-Path $tauriDir 'src\paths.rs'
+if (-not (Test-Path -LiteralPath $pathsRs -PathType Leaf)) { Fail "paths.rs missing: $pathsRs" 1 }
+$pathsText = Get-Content -LiteralPath $pathsRs -Raw
+if ($pathsText -notmatch 'install_dir\.join\("data"\)') {
+  Fail 'portable-data policy not implemented: paths.rs must default to <exe dir>/data (install_dir.join("data"))' 1
+}
+if ($pathsText -match 'app_data_dir\(') {
+  Fail 'portable-data policy violated: paths.rs still uses app_data_dir() (default data must live inside the installation folder)' 1
+}
+if ($pathsText -match 'LOCALAPPDATA') {
+  Write-Log WARN 'paths.rs mentions LOCALAPPDATA: allowed only for the minimal settings pointer when the install folder is not writable - must be documented and must never store models/data there.'
+}
+Write-Log OK 'portable-data policy: default data dir is <install dir>/data (no AppData default)'
+
 # --------------------------------------------------------------- tauri build
 Write-Log STEP 'step 4/7 - tauri build bundle'
 $signed = -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)
@@ -283,6 +339,18 @@ foreach ($a in $artifacts) {
 }
 $sumLines | Set-Content -LiteralPath (Join-Path $dist 'SHA256SUMS') -Encoding ASCII
 
+$publisher = 'Nicola Lanci'
+$copyright = '© 2026 Nicola Lanci — NL VO Shield'
+$homepage = 'https://www.nicolalanci.com'
+$contact = 'info@nicolalanci.com'
+$repoUrl = 'https://github.com/Nicotina4ever/NL-VO-SHIELD'
+$confPublisher = [string]$conf.bundle.publisher
+$confCopyright = [string]$conf.bundle.copyright
+$confHomepage = [string]$conf.bundle.homepage
+if ($confPublisher -and $confPublisher -ne $publisher) { Write-Log WARN "tauri.conf publisher '$confPublisher' differs from the required '$publisher'" }
+if ($confCopyright -and $confCopyright -ne $copyright) { Write-Log WARN "tauri.conf copyright '$confCopyright' differs from the required '$copyright'" }
+if ($confHomepage -and $confHomepage -ne $homepage) { Write-Log WARN "tauri.conf homepage '$confHomepage' differs from the required '$homepage'" }
+
 $buildInfo = [ordered]@{
   schema = 1
   product = $product
@@ -290,13 +358,20 @@ $buildInfo = [ordered]@{
   os = 'windows'
   arch = $arch
   generated_at = (Get-Date).ToString('o')
+  publisher = $publisher
+  copyright = $copyright
+  homepage = $homepage
+  contact = $contact
+  repository = $repoUrl
   signed = $signed
   auto_update = $(if ($signed) { 'enabled-if-updater-pubkey-configured' } else { 'disabled-no-signing-key' })
   leak_guard = $(if ($SkipLeakGuard) { 'skipped' } else { 'passed' })
   bundle_targets = $bundleList
   with_audio_seal = [bool]$WithAudioSeal
   models_bundled = $false
-  models_location = '<app_data>/models (Windows: %APPDATA%\com.nicotina4ever.nlvoshield\models; portable: <exe folder>\NL VO Shield Data\models)'
+  models_location = '<install dir>\data\models (portable by default; the app asks for a folder if the install dir is not writable; no %APPDATA% data)'
+  data_dir_policy = 'install'
+  sidecar = @{ platform = [string]$engineManifest.platform; python = $engineManifest.python; runtime = [bool]$engineManifest.runtime; pyinstaller = [bool]$engineManifest.pyinstaller }
   artifacts = @($artifacts | ForEach-Object { @{ file = $_.File; bytes = $_.Bytes; sha256 = (Get-FileHash -LiteralPath (Join-Path $dist $_.File) -Algorithm SHA256).Hash.ToLowerInvariant() } })
   artifacts_bytes = ($artifacts | Measure-Object -Property Bytes -Sum).Sum
 }

@@ -95,6 +95,22 @@ class DspWatermarkEngine(BaseEngine):
         "Not validated against lossy codecs/resynthesis; attribution aid, not anti-cloning."
     )
 
+    description = (
+        "Genuine spread-spectrum (DSSS) audio watermark implemented in DSP: no machine "
+        "learning and no model download. Used when AudioSeal is not installed."
+    )
+    impact = (
+        "Adds a masked noise-like signal (roughly -20 to -45 dB relative to the local "
+        "signal, content dependent). No clipping: the amplitude is bounded per segment."
+    )
+    limitations = [
+        "Detection requires the local watermark key stored in this installation's data directory.",
+        "Robustness to lossy codecs or resynthesis is not validated.",
+        "Attribution aid only, never anti-cloning protection.",
+    ]
+    recommended_levels = ["light", "balanced", "strong"]
+    incompatible_with = []
+
     def __init__(self, context: Any) -> None:
         self.context = context
 

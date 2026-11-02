@@ -288,6 +288,8 @@ class RpcServer:
                     f"Internal error: {type(exc).__name__}",
                     {"type": type(exc).__name__, "message": str(exc)},
                 )
+            if self._stop.is_set():
+                break
         self.jobs.shutdown()
         return 0
 
@@ -310,10 +312,10 @@ class RpcServer:
             return chain, preset_id
         if preset_id is None:
             preset_id = self.ctx.settings_public().get("default_preset", "studio_master")
-        preset = self.ctx.presets.get(str(preset_id))
+        chain, preset = self.ctx.preset_chain(str(preset_id))
         if preset is None:
             raise RpcError(INVALID_PARAMS, f"Unknown preset: {preset_id}")
-        return list(preset.get("chain") or []), str(preset_id)
+        return chain, str(preset_id)
 
     # ------------------------------------------------------------------ methods
     def _health(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -454,7 +456,7 @@ class RpcServer:
         return {"deleted": self.ctx.profiles.delete(profile_id)}
 
     def _presets_list(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"presets": self.ctx.presets.list()}
+        return {"presets": self.ctx.resolved_presets()}
 
     def _presets_save(self, params: dict[str, Any]) -> dict[str, Any]:
         preset = self._require(params, "preset", dict)

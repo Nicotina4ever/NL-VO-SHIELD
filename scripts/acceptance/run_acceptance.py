@@ -165,8 +165,8 @@ class EngineProcess:
         env["PYTHONPATH"] = str(ENGINE_DIR) + os.pathsep + env.get("PYTHONPATH", "")
         env["PYTHONUTF8"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
-        env["NLVS_PROJECT_ROOT"] = str(PROJECT)
-        env["NLVS_REPO_ROOT"] = str(ROOT)
+        env["NLVS_PROJECT_ROOT"] = str(ROOT)   # engine semantics: repository root
+        env["NLVS_WORKSPACE_ROOT"] = str(PROJECT)  # dev workspace (contains legacy bin/c2patool)
         self.stderr_path = data_dir / "engine-stderr.log"
         self._stderr = open(self.stderr_path, "w", encoding="utf-8", errors="replace")
         # The project Python is an isolated build: PYTHONPATH and -m are ignored,
@@ -525,7 +525,13 @@ def test_b(python: Path, ev: Evidence) -> None:
             return
         q_in = engine.call("quality.analyze", {"path": str(TEST_AUDIO)}, timeout=300)
         ev.data["quality_input"] = q_in
-        ev.check("input quality analysed", bool(q_in), {k: q_in.get(k) for k in ("sample_rate", "duration_s", "true_peak_dbfs", "lufs")})
+        qm_in = q_in.get("metrics") or {}
+        ev.check("input quality analysed", bool(qm_in), {
+            k: qm_in.get(k) for k in ("sample_rate", "duration_seconds", "true_peak_dbtp", "lufs_integrated")
+        })
+        ev.check("input quality metrics complete",
+                 qm_in.get("lufs_integrated") is not None and qm_in.get("true_peak_dbtp") is not None,
+                 {"lufs": qm_in.get("lufs_integrated"), "true_peak": qm_in.get("true_peak_dbtp")})
 
         job = engine.call("job.start", {
             "input_path": str(TEST_AUDIO),
@@ -543,12 +549,21 @@ def test_b(python: Path, ev: Evidence) -> None:
         ev.artifact(out_path)
         q_out = engine.call("quality.analyze", {"path": out_path, "reference_path": str(TEST_AUDIO)}, timeout=300)
         ev.data["quality_output"] = q_out
-        ev.check("output quality analysed", bool(q_out))
-        detail = q_out.get("comparison") or q_out
-        ev.check("no clipping introduced", not (q_out.get("clipping_count") or 0) > 0 or (q_in.get("clipping_count") or 0) > 0,
-                 {"in": q_in.get("clipping_count"), "out": q_out.get("clipping_count")})
-        ev.check("sample rate preserved", q_in.get("sample_rate") == q_out.get("sample_rate"),
-                 {"in": q_in.get("sample_rate"), "out": q_out.get("sample_rate")})
+        qm_out = q_out.get("metrics") or {}
+        ev.check("output quality analysed", bool(qm_out))
+        ev.check("output quality metrics complete",
+                 qm_out.get("lufs_integrated") is not None and qm_out.get("true_peak_dbtp") is not None,
+                 {"lufs": qm_out.get("lufs_integrated"), "true_peak": qm_out.get("true_peak_dbtp")})
+        ev.check("no clipping introduced",
+                 (qm_out.get("clipping_samples") or 0) <= (qm_in.get("clipping_samples") or 0),
+                 {"in": qm_in.get("clipping_samples"), "out": qm_out.get("clipping_samples")})
+        ev.check("sample rate preserved", qm_in.get("sample_rate") == qm_out.get("sample_rate"),
+                 {"in": qm_in.get("sample_rate"), "out": qm_out.get("sample_rate")})
+        ref = qm_out.get("reference") or {}
+        ev.check("objective A/B comparison produced", bool(ref.get("comparable")),
+                 {"snr_db": ref.get("snr_db"), "correlation": ref.get("correlation"),
+                  "log_spectral_distance_db": ref.get("log_spectral_distance_db"),
+                  "rms_delta_db": ref.get("rms_delta_db")})
 
         # MP3 round-trip (real codec degradation)
         if not ffmpeg:
@@ -712,8 +727,13 @@ def test_d(python: Path, ev: Evidence) -> None:
     if isinstance(parsed, dict):
         reachable = parsed.get("comfy_reachable") or parsed.get("reachable") or parsed.get("ok")
     ev.check("preflight command executed", probe.returncode in (0, 2, 3), {"rc": probe.returncode})
-    ev.check("ComfyUI reachable", reachable is True,
-             {"reachable": reachable, "detail": (parsed or {}).get("reason") if isinstance(parsed, dict) else None})
+    if reachable is True:
+        ev.check("ComfyUI reachable", True, {"detail": (parsed or {}).get("status") if isinstance(parsed, dict) else None})
+    else:
+        ev.check("ComfyUI reachable", None, {
+            "reachable": False,
+            "detail": "local ComfyUI endpoint not reachable — TEST D requires user setup",
+        })
     if reachable is not True:
         ev.finish("NOT_RUN", ["USER SETUP REQUIRED: local ComfyUI not reachable; no A/B run performed"])
         return

@@ -55,6 +55,24 @@ class AudioSealEngine(BaseEngine):
         "is stored separately. Detector threshold is not calibrated for a false-positive rate."
     )
 
+    description = (
+        "Neural watermark from Meta AudioSeal: embeds a 16-bit payload and provides a "
+        "matching detector. Used for attribution of protected audio."
+    )
+    impact = (
+        "Adds an inaudible watermark (no audible change expected). Audio is resampled to "
+        "16 kHz for watermarking and back to the original rate; quality impact is minimal "
+        "but measured in every job."
+    )
+    limitations = [
+        "Only a 16-bit payload: the full unique ID lives in the signed receipt, not in the audio.",
+        "Requires the optional torch/audioseal stack and the official weights (never downloaded automatically).",
+        "Detector threshold is not calibrated to a false-positive rate.",
+        "A watermark is an attribution aid, not anti-cloning protection.",
+    ]
+    recommended_levels = ["light", "balanced", "strong"]
+    incompatible_with = []
+
     def __init__(self, context: Any) -> None:
         self.context = context
         self.version = _package_version("audioseal")

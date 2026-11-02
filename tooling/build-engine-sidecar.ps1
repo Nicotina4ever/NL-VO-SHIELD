@@ -139,6 +139,7 @@ if (-not (Test-Path -LiteralPath $enginePkg -PathType Container)) { Fail "engine
 if (-not (Test-Path -LiteralPath $tauriDir -PathType Container)) { Fail "desktop shell missing: $tauriDir (apps/desktop is not ready)" 2 }
 
 # ------------------------------------------------------------ python source
+$winArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } elseif ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' }
 $pyExe = $null
 $pyKind = ''
 if ($env:NLVS_ENGINE_PYTHON -and (Test-Path -LiteralPath $env:NLVS_ENGINE_PYTHON -PathType Leaf)) {
@@ -149,8 +150,7 @@ if (-not $pyExe) {
   if (Test-Path -LiteralPath $sibling -PathType Leaf) { $pyExe = (Resolve-Path -LiteralPath $sibling).Path; $pyKind = 'project-python' }
 }
 if (-not $pyExe) {
-  $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } elseif ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' }
-  $portable = Join-Path $root ".local\runtime\windows-$arch\python.exe"
+  $portable = Join-Path $root ".local\runtime\windows-$winArch\python.exe"
   if (Test-Path -LiteralPath $portable -PathType Leaf) { $pyExe = (Resolve-Path -LiteralPath $portable).Path; $pyKind = 'portable-runtime' }
 }
 if (-not $pyExe) { Fail 'no project Python found (expected ..\python_win\python.exe or .local\runtime\windows-<arch>)' 2 }
@@ -367,21 +367,23 @@ foreach ($item in $health) {
 }
 
 # ------------------------------------------------------------- manifest
+# The manifest is shipped inside the installer resources: it must never contain
+# absolute developer paths, full build-host paths or health payloads with paths.
 $reqHash = ''
 if (Test-Path -LiteralPath $baseReq) { $reqHash = (Get-FileHash -LiteralPath $baseReq -Algorithm SHA256).Hash.ToLowerInvariant() }
+elseif (Test-Path -LiteralPath (Join-Path $engineSrc 'pyproject.toml')) { $reqHash = (Get-FileHash -LiteralPath (Join-Path $engineSrc 'pyproject.toml') -Algorithm SHA256).Hash.ToLowerInvariant() }
 $manifest = [ordered]@{
   schema = 1
   product = 'NL VO Shield'
+  platform = "windows-$winArch"
   generated_at = (Get-Date).ToString('o')
   with_audio_seal = [bool]$WithAudioSeal
   runtime = (-not $SkipRuntime)
   pyinstaller = (-not $SkipPyInstaller)
-  python = @{ source = $pyKind; path = $pyExe; version = $pyVersion }
+  python = @{ source = $pyKind; version = $pyVersion }
   requirements_sha256 = $reqHash
-  runtime_health = @($health | Where-Object { $_.Description -like '*runtime*' })
-  frozen_health = @($health | Where-Object { $_.Description -like '*frozen*' })
+  health = @($health | ForEach-Object { @{ description = $_.Description; ok = [bool]$_.Ok } })
   size_bytes = (Get-DirSize -Path $engineDir)
-  size_human = (Format-Size (Get-DirSize -Path $engineDir))
   expected_layout = @('runtime/python.exe (-m nl_vo_shield.rpc) [Windows]', 'runtime/bin/python3 [macOS/Linux]', 'frozen/nlvo-engine/nlvo-engine(.exe)')
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $engineDir 'build-manifest.json') -Encoding UTF8

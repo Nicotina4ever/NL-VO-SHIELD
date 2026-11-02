@@ -113,10 +113,62 @@ def test_settings_and_presets_cli(tmp_path: Path) -> None:
     presets = _run(CLI_LAUNCHER, ["presets", "list", "--json", "--data-dir", str(data_dir)], tmp_path)
     assert presets.returncode == 0
     listed = json.loads(presets.stdout)["presets"]
-    assert {"studio_master", "base_watermark", "custom"} <= {item["id"] for item in listed}
+    by_id = {item["id"]: item for item in listed}
+    assert {"studio_master", "professional_demo", "public_distribution", "base_watermark", "custom"} <= set(by_id)
+    assert by_id["public_distribution"]["level"] == "light"
+    assert by_id["professional_demo"]["level"] == "balanced"
+    assert by_id["studio_master"]["level"] == "strong"
+    assert by_id["studio_master"]["quality_warning"] is True
+    assert by_id["public_distribution"]["chain"]
     settings = _run(CLI_LAUNCHER, ["settings", "get", "--json", "--data-dir", str(data_dir)], tmp_path)
     assert settings.returncode == 0
     assert "models_dir_resolved" in json.loads(settings.stdout)["settings"]
+
+
+def test_relative_paths_with_c2pa_cli(tmp_path: Path, tone_wav: Path) -> None:
+    """Regression: relative --data-dir/--output-dir/input must work with c2patool."""
+    from nl_vo_shield.context import AppContext
+
+    probe = AppContext(tmp_path / "probe-data")
+    if probe.registry.get("c2pa").availability()[0] is False:
+        pytest.skip("c2patool not available")
+    # Copy the fixture into the working directory and use relative paths.
+    source = tmp_path / "relative.wav"
+    source.write_bytes(tone_wav.read_bytes())
+    chain = json.dumps([
+        {"engine": "watermark_dsp", "action": "embed", "required": True},
+        {"engine": "c2pa", "action": "sign", "required": True},
+    ])
+    completed = _run(
+        CLI_LAUNCHER,
+        ["protect", "relative.wav", "--output-dir", "relative-out", "--chain", chain,
+         "--json", "--no-progress", "--data-dir", "relative-data"],
+        tmp_path,
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result["status"] == "protected", result.get("failed")
+    output = Path(result["output_path"])
+    assert output.is_absolute() and output.is_file()
+    assert result["finished_at"]
+
+
+def test_watch_once_processes_new_files(tmp_path: Path, tone_wav: Path) -> None:
+    input_dir = tmp_path / "watch-in"
+    input_dir.mkdir()
+    (input_dir / "drop1.wav").write_bytes(tone_wav.read_bytes())
+    output_dir = tmp_path / "watch-out"
+    chain = json.dumps([{"engine": "watermark_dsp", "action": "embed", "required": True}])
+    completed = _run(
+        CLI_LAUNCHER,
+        ["watch", "--input-dir", str(input_dir), "--output-dir", str(output_dir),
+         "--chain", chain, "--once", "--data-dir", str(tmp_path / "watch-data")],
+        tmp_path,
+    )
+    assert completed.returncode == 0, completed.stderr
+    protected = list(output_dir.glob("*_protected.wav"))
+    assert len(protected) == 1
+    assert "protected:" in completed.stderr
 
 
 def test_isolated_python_launcher_imports_package(tmp_path: Path) -> None:

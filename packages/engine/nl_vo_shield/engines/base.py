@@ -107,6 +107,12 @@ class EngineInfo:
     reason: str | None = None
     path: str | None = None
     quality_note: str | None = None
+    # Informative fields for the UI (the engine contract stays a superset).
+    description: str = ""
+    impact: str = ""
+    limitations: list[str] = field(default_factory=list)
+    recommended_levels: list[str] = field(default_factory=list)
+    incompatible_with: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -122,6 +128,11 @@ class EngineInfo:
             "reason": self.reason,
             "path": self.path,
             "quality_note": self.quality_note,
+            "description": self.description,
+            "impact": self.impact,
+            "limitations": list(self.limitations),
+            "recommended_levels": list(self.recommended_levels),
+            "incompatible_with": list(self.incompatible_with),
         }
 
 
@@ -154,6 +165,12 @@ class BaseEngine:
     quality_note: str | None = None
     status_override: str | None = None  # e.g. "experimental"
     verified_in_session: bool = False
+    # UI-facing information (English; the desktop app maps it to IT).
+    description: str = ""
+    impact: str = ""
+    limitations: list[str] = []
+    recommended_levels: list[str] = []
+    incompatible_with: list[str] = []
 
     def availability(self) -> tuple[bool, str | None]:
         return True, None
@@ -184,6 +201,11 @@ class BaseEngine:
             reason=reason,
             path=self.path(),
             quality_note=self.quality_note,
+            description=self.description,
+            impact=self.impact,
+            limitations=list(self.limitations),
+            recommended_levels=list(self.recommended_levels),
+            incompatible_with=list(self.incompatible_with),
         )
 
     def mark_verified(self) -> None:

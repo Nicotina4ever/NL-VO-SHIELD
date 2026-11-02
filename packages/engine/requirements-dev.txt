@@ -1,0 +1,3 @@
+# NL VO Shield engine — development/test requirements (not shipped).
+pytest>=8
+pytest-timeout>=2.3

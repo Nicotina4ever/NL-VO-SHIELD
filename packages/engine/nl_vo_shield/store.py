@@ -1,4 +1,18 @@
-"""Local profiles and presets (never contains private keys)."""
+"""Local profiles and presets (never contains private keys).
+
+Presets are real chains executed by the pipeline, not labels. The built-in
+presets map to three impact levels plus a custom chain:
+
+* ``public_distribution`` ("Leggero" / light): watermark + C2PA, no perturbation.
+* ``professional_demo``  ("Bilanciato" / balanced): light spectral perturbation
+  + watermark + C2PA.
+* ``studio_master``      ("Massimo" / strong): medium spectral perturbation
+  + watermark + C2PA (with an explicit quality warning).
+* ``custom``: chain supplied by the UI, validated by the pipeline.
+
+A step whose engine is ``watermark_auto`` is resolved at job time to AudioSeal
+when its weights are installed, otherwise to the DSP spread-spectrum watermark.
+"""
 
 from __future__ import annotations
 
@@ -13,75 +27,112 @@ from .util import atomic_write_text, full_id, read_json, utc_now_iso
 PROFILES_FILENAME = "profiles.json"
 PRESETS_FILENAME = "presets.json"
 
+WATERMARK_AUTO = "watermark_auto"
+VALID_LEVELS = ("light", "balanced", "strong", "custom")
+
+_COMMON_C2PA = {"engine": "c2pa", "action": "sign", "required": True, "params": {}}
+_WATERMARK_AUTO_STEP = {
+    "engine": WATERMARK_AUTO,
+    "action": "embed",
+    "required": True,
+    "params": {},
+}
+
 BUILTIN_PRESETS: tuple[dict[str, Any], ...] = (
     {
-        "id": "studio_master",
-        "name": "Studio Master",
+        "id": "public_distribution",
+        "name": "Public Distribution",
+        "label": "Leggero",
+        "level": "light",
         "description": (
-            "Massima qualita' possibile con anti-clone + watermark AudioSeal + provenienza C2PA. "
-            "Richiede i pesi AudioSeal e c2patool."
+            "Watermark (AudioSeal when installed, otherwise the DSP spread-spectrum watermark) "
+            "plus C2PA provenance. No anti-clone perturbation: only the audio samples are "
+            "watermarked."
+        ),
+        "impact": (
+            "Minimo: watermark inaudibile e manifest di provenienza; nessuna perturbazione "
+            "anti-clone. Qualita' audio praticamente invariata."
         ),
         "builtin": True,
-        "required_engines": ["spectral_cloak", "audioseal", "c2pa"],
-        "chain": [
-            {"engine": "spectral_cloak", "action": "perturb", "required": True,
-             "params": {"strength": "medium", "seed": 1234}},
-            {"engine": "audioseal", "action": "embed", "required": True, "params": {}},
-            {"engine": "c2pa", "action": "sign", "required": True, "params": {}},
-        ],
+        "required_engines": ["watermark", "c2pa"],
+        "quality_warning": False,
+        "chain": [dict(_WATERMARK_AUTO_STEP), dict(_COMMON_C2PA)],
     },
     {
         "id": "professional_demo",
         "name": "Professional Demo",
+        "label": "Bilanciato",
+        "level": "balanced",
         "description": (
-            "Bilanciamento tra qualita' e protezione per demo professionali: perturbazione media, "
-            "watermark AudioSeal e firma C2PA."
+            "Light STFT anti-clone perturbation (spectral_cloak strength=low) + watermark "
+            "(AudioSeal/DSP) + C2PA provenance."
+        ),
+        "impact": (
+            "Moderato: perturbazione spettrale leggera (SNR ~30 dB) piu' watermark e provenienza. "
+            "Qualita' alta, distorsione misurata nel job."
         ),
         "builtin": True,
-        "required_engines": ["spectral_cloak", "audioseal", "c2pa"],
+        "required_engines": ["anti_clone", "watermark", "c2pa"],
+        "quality_warning": False,
         "chain": [
             {"engine": "spectral_cloak", "action": "perturb", "required": True,
-             "params": {"strength": "medium", "seed": 1234}},
-            {"engine": "audioseal", "action": "embed", "required": True, "params": {}},
-            {"engine": "c2pa", "action": "sign", "required": True, "params": {}},
+             "params": {"strength": "low", "seed": 1234}},
+            dict(_WATERMARK_AUTO_STEP),
+            dict(_COMMON_C2PA),
         ],
     },
     {
-        "id": "public_distribution",
-        "name": "Public Distribution",
+        "id": "studio_master",
+        "name": "Studio Master",
+        "label": "Massimo",
+        "level": "strong",
         "description": (
-            "Perturbazione piu' forte per pubblicazione: qualita' leggermente inferiore, "
-            "watermark e firma C2PA obbligatori."
+            "Medium STFT anti-clone perturbation (spectral_cloak strength=medium) + watermark "
+            "(AudioSeal/DSP) + C2PA provenance. Anti-clone efficacy remains experimental."
+        ),
+        "impact": (
+            "Elevato: perturbazione spettrale media (SNR ~24 dB), watermark e provenienza. "
+            "Possibile degrado percepibile su voci delicate: ascolto A/B consigliato."
         ),
         "builtin": True,
-        "required_engines": ["spectral_cloak", "audioseal", "c2pa"],
+        "required_engines": ["anti_clone", "watermark", "c2pa"],
+        "quality_warning": True,
         "chain": [
             {"engine": "spectral_cloak", "action": "perturb", "required": True,
-             "params": {"strength": "high", "seed": 1234}},
-            {"engine": "audioseal", "action": "embed", "required": True, "params": {}},
-            {"engine": "c2pa", "action": "sign", "required": True, "params": {}},
+             "params": {"strength": "medium", "seed": 1234}},
+            dict(_WATERMARK_AUTO_STEP),
+            dict(_COMMON_C2PA),
         ],
     },
     {
         "id": "base_watermark",
         "name": "Base Watermark (DSP)",
+        "label": "Solo watermark (DSP)",
+        "level": "light",
+        "alias_of": "public_distribution",
         "description": (
-            "Fallback per installazioni base senza torch/AudioSeal: watermark DSP spread-spectrum "
-            "reale + provenienza C2PA. Non e' anti-cloning."
+            "Fallback for base installs without torch/AudioSeal: DSP spread-spectrum watermark "
+            "+ C2PA provenance. Not anti-cloning."
         ),
+        "impact": "Minimo: watermark DSP reale e manifest C2PA; nessun effetto anti-clone.",
         "builtin": True,
-        "required_engines": ["watermark_dsp", "c2pa"],
+        "required_engines": ["watermark", "c2pa"],
+        "quality_warning": False,
         "chain": [
             {"engine": "watermark_dsp", "action": "embed", "required": True, "params": {}},
-            {"engine": "c2pa", "action": "sign", "required": True, "params": {}},
+            dict(_COMMON_C2PA),
         ],
     },
     {
         "id": "custom",
         "name": "Custom",
-        "description": "Catena scelta manualmente dall'utente.",
+        "label": "Personalizzato",
+        "level": "custom",
+        "description": "Catena scelta manualmente dall'utente; validata dal motore prima dell'esecuzione.",
+        "impact": "Dipende dalla catena scelta.",
         "builtin": True,
         "required_engines": [],
+        "quality_warning": False,
         "chain": [],
     },
 )
@@ -116,15 +167,18 @@ class PresetStore(JsonStore):
             item = dict(builtin)
             override = custom.pop(builtin["id"], None)
             if override and not override.get("builtin"):
-                # A user override may adjust params but cannot shadow builtin ids
-                # with an empty chain.
                 if override.get("chain"):
                     item["chain"] = override["chain"]
                     item["description"] = override.get("description", item["description"])
                     item["overridden"] = True
             merged.append(item)
         for item in custom.values():
-            merged.append(item)
+            normalized = dict(item)
+            normalized.setdefault("level", "custom")
+            normalized.setdefault("label", normalized.get("name", "Custom"))
+            normalized.setdefault("impact", "Dipende dalla catena personalizzata.")
+            normalized.setdefault("quality_warning", False)
+            merged.append(normalized)
         return merged
 
     def get(self, preset_id: str) -> dict[str, Any] | None:
@@ -152,11 +206,18 @@ class PresetStore(JsonStore):
                 raise PresetError("each preset step needs an 'engine'")
             if step.get("action") not in ("embed", "perturb", "sign", "detect", "verify"):
                 raise PresetError(f"unsupported preset action: {step.get('action')!r}")
+        level = preset.get("level", "custom")
+        if level not in VALID_LEVELS:
+            raise PresetError(f"preset.level must be one of {VALID_LEVELS}")
         record = {
             "id": preset_id,
             "name": str(preset.get("name") or preset_id),
+            "label": str(preset.get("label") or preset.get("name") or preset_id),
+            "level": level,
             "description": str(preset.get("description") or ""),
+            "impact": str(preset.get("impact") or "Dipende dalla catena personalizzata."),
             "builtin": False,
+            "quality_warning": bool(preset.get("quality_warning", False)),
             "chain": chain,
             "created_at": preset.get("created_at") or utc_now_iso(),
             "updated_at": utc_now_iso(),

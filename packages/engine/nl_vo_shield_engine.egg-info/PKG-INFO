@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: nl-vo-shield-engine
-Version: 0.1.0
+Version: 1.0.0
 Summary: NL VO Shield — local-first audio protection, watermark, C2PA provenance and verification engine
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown

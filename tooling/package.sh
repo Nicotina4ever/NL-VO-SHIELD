@@ -22,6 +22,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BUNDLES=""
+EXPECTED_VERSION="1.0.0"
 SKIP_LEAK_GUARD=0
 SKIP_SIDECAR=0
 SKIP_INSTALL=0
@@ -31,6 +32,7 @@ EXPLICIT_ROOT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --bundles) shift; BUNDLES="${1:-}" ;;
+    --expected-version) shift; EXPECTED_VERSION="${1:-}" ;;
     --skip-leak-guard) SKIP_LEAK_GUARD=1 ;;
     --skip-sidecar) SKIP_SIDECAR=1 ;;
     --skip-install) SKIP_INSTALL=1 ;;
@@ -89,6 +91,9 @@ PRODUCT="$(json_get "$CONF" productName)"; [ -n "$PRODUCT" ] || PRODUCT="NL VO S
 VERSION="$(json_get "$CONF" version)"
 [ -n "$VERSION" ] || VERSION="$(json_get "$DESKTOP/package.json" version)"
 [ -n "$VERSION" ] || fail "cannot determine the product version from tauri.conf.json/package.json" 2
+if [ -n "$EXPECTED_VERSION" ] && [ "$VERSION" != "$EXPECTED_VERSION" ]; then
+  fail "app version mismatch: tauri.conf.json reports '$VERSION' but the release version must be '$EXPECTED_VERSION' (update tauri.conf.json/package.json/Cargo.toml or pass --expected-version)" 2
+fi
 
 if [ -z "$BUNDLES" ]; then
   case "$OS" in
@@ -142,6 +147,47 @@ else
   log WARN 'step 3/8 - sidecar build skipped by request'
 fi
 [ -d "$TAURI_DIR/engine" ] || fail "engine payload missing: $TAURI_DIR/engine (run tooling/build-engine-sidecar.sh)" 2
+
+# --------------------------------------- sidecar provenance + data policy
+log STEP 'step 3b/8 - sidecar provenance and portable-data policy checks'
+ENGINE_DIR="$TAURI_DIR/engine"
+ENGINE_MANIFEST="$ENGINE_DIR/build-manifest.json"
+[ -f "$ENGINE_MANIFEST" ] || fail "engine build manifest missing: $ENGINE_MANIFEST (rebuild the sidecar)" 1
+json_nested() { node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const v=(c[process.argv[2]]||{})[process.argv[3]];process.stdout.write(v===undefined||v===null?"":String(v))' "$1" "$2" "$3"; }
+ENGINE_PLATFORM="$(json_get "$ENGINE_MANIFEST" platform)"
+ENGINE_PY_SOURCE="$(json_nested "$ENGINE_MANIFEST" python source)"
+if [ -n "$ENGINE_PLATFORM" ] && [ "$ENGINE_PLATFORM" != "$TARGET" ]; then
+  fail "engine payload platform '$ENGINE_PLATFORM' does not match this build target '$TARGET' (rebuild the native sidecar)" 1
+fi
+case "$OS" in
+  windows)
+    [ -f "$ENGINE_DIR/runtime/python.exe" ] || fail "engine payload is not a Windows runtime: runtime/python.exe missing (rebuild on Windows with the project Python)" 1
+    FROZEN="$(find "$ENGINE_DIR/frozen" -type f -name '*.exe' 2>/dev/null | head -n 1)"
+    FOREIGN="$(find "$ENGINE_DIR" -type f \( -name '*.so' -o -name '*.dylib' -o -name 'libpython*.so*' \) 2>/dev/null | wc -l)"
+    ;;
+  macos|linux)
+    FROZEN="$(find "$ENGINE_DIR/frozen" -type f -name 'nlvo-engine' 2>/dev/null | head -n 1)"
+    [ -x "$ENGINE_DIR/runtime/bin/python3" ] || fail "engine payload runtime/bin/python3 missing (rebuild the sidecar)" 1
+    FOREIGN="$(find "$ENGINE_DIR" -type f -name '*.exe' 2>/dev/null | wc -l)"
+    ;;
+esac
+[ -n "${FROZEN:-}" ] || fail "engine payload has no frozen executable for $OS (rebuild the sidecar)" 1
+[ "${FOREIGN:-0}" -eq 0 ] || fail "engine payload contains foreign-platform binaries ($FOREIGN files); rebuild the native sidecar" 1
+MODEL_COUNT="$(find "$ENGINE_DIR" -type f \( -name '*.pth' -o -name '*.pt' -o -name '*.onnx' -o -name '*.safetensors' -o -name '*.gguf' -o -name '*.wav' -o -name '*.mp3' -o -name '*.flac' -o -name '*.npy' -o -name '*.npz' \) 2>/dev/null | wc -l)"
+[ "$MODEL_COUNT" -eq 0 ] || fail "engine payload contains model/audio payloads ($MODEL_COUNT files); the base package must ship no models" 1
+ENGINE_SIZE_MB=$(( $(du -sk "$ENGINE_DIR" | awk '{print $1}') / 1024 ))
+log OK "engine payload: native $TARGET runtime + frozen executable, ${ENGINE_SIZE_MB} MB, no models/audio, provenance ${ENGINE_PY_SOURCE:-unknown}"
+
+PATHS_RS="$TAURI_DIR/src/paths.rs"
+[ -f "$PATHS_RS" ] || fail "paths.rs missing: $PATHS_RS" 1
+grep -q 'install_dir\.join("data")' "$PATHS_RS" || fail 'portable-data policy not implemented: paths.rs must default to <exe dir>/data (install_dir.join("data"))' 1
+if grep -q 'app_data_dir(' "$PATHS_RS"; then
+  fail 'portable-data policy violated: paths.rs still uses app_data_dir() (default data must live inside the installation folder)' 1
+fi
+if grep -q 'LOCALAPPDATA' "$PATHS_RS"; then
+  log WARN 'paths.rs mentions LOCALAPPDATA: allowed only for the minimal settings pointer when the install folder is not writable - must be documented and never store models/data there.'
+fi
+log OK 'portable-data policy: default data dir is <install dir>/data (no AppData default)'
 
 # --------------------------------------------------------------- tauri build
 log STEP 'step 4/8 - tauri build bundle'
@@ -226,6 +272,13 @@ LEAK_GUARD_STATE=passed; [ "$SKIP_LEAK_GUARD" -eq 1 ] && LEAK_GUARD_STATE=skippe
 AUTO_UPDATE="disabled-no-signing-key"; [ "$SIGNED" -eq 1 ] && AUTO_UPDATE="enabled-if-updater-pubkey-configured"
 AUDIO_JSON=false; [ "$WITH_AUDIOSEAL" -eq 1 ] && AUDIO_JSON=true
 SIGNED_JSON=false; [ "$SIGNED" -eq 1 ] && SIGNED_JSON=true
+PUBLISHER='Nicola Lanci'
+COPYRIGHT='© 2026 Nicola Lanci — NL VO Shield'
+HOMEPAGE='https://www.nicolalanci.com'
+CONTACT='info@nicolalanci.com'
+REPO_URL='https://github.com/Nicotina4ever/NL-VO-SHIELD'
+MODELS_LOCATION='<install dir>/data/models (portable by default; the app asks for a folder if the install dir is not writable; no %APPDATA% data)'
+SIDECAR_JSON="$(node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(JSON.stringify({platform:m.platform,python:m.python,runtime:m.runtime,pyinstaller:m.pyinstaller}))' "$ENGINE_MANIFEST")"
 TOTAL_BYTES=0
 for f in "${ARTIFACTS[@]}"; do
   if stat -c %s "$DIST/$f" >/dev/null 2>&1; then s=$(stat -c %s "$DIST/$f"); else s=$(stat -f %z "$DIST/$f"); fi
@@ -239,13 +292,20 @@ done
   printf '  "os": "%s",\n' "$OS"
   printf '  "arch": "%s",\n' "$ARCH"
   printf '  "generated_at": "%s",\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  printf '  "publisher": "%s",\n' "$PUBLISHER"
+  printf '  "copyright": "%s",\n' "$COPYRIGHT"
+  printf '  "homepage": "%s",\n' "$HOMEPAGE"
+  printf '  "contact": "%s",\n' "$CONTACT"
+  printf '  "repository": "%s",\n' "$REPO_URL"
   printf '  "signed": %s,\n' "$SIGNED_JSON"
   printf '  "auto_update": "%s",\n' "$AUTO_UPDATE"
   printf '  "leak_guard": "%s",\n' "$LEAK_GUARD_STATE"
   printf '  "bundle_targets": "%s",\n' "$BUNDLES"
   printf '  "with_audio_seal": %s,\n' "$AUDIO_JSON"
   printf '  "models_bundled": false,\n'
-  printf '  "models_location": "<app_data>/models (Windows: %%APPDATA%%\\com.nicotina4ever.nlvoshield\\models; portable: <exe folder>/NL VO Shield Data/models)",\n'
+  printf '  "models_location": "%s",\n' "$MODELS_LOCATION"
+  printf '  "data_dir_policy": "install",\n'
+  printf '  "sidecar": %s,\n' "$SIDECAR_JSON"
   printf '  "artifacts_bytes": %s,\n' "$TOTAL_BYTES"
   printf '  "artifacts": [\n'
   i=0

@@ -68,10 +68,10 @@ def _chain_from_args(ctx: AppContext, args: argparse.Namespace) -> tuple[list[di
             raise PipelineError("The protection chain must be a JSON list of steps")
         return chain, getattr(args, "preset", None)
     preset_id = getattr(args, "preset", None) or ctx.settings_public().get("default_preset", "studio_master")
-    preset = ctx.presets.get(str(preset_id))
+    chain, preset = ctx.preset_chain(str(preset_id))
     if preset is None:
         raise PipelineError(f"Unknown preset: {preset_id}")
-    return list(preset.get("chain") or []), str(preset_id)
+    return chain, str(preset_id)
 
 
 def _job_options(args: argparse.Namespace) -> dict[str, Any]:
@@ -136,6 +136,76 @@ def cmd_batch(ctx: AppContext, args: argparse.Namespace) -> int:
     )
     _emit(result, args.compact)
     return 0 if result.get("status") == "protected" else 2
+
+
+def cmd_watch(ctx: AppContext, args: argparse.Namespace) -> int:
+    """Polling folder watcher: protect new audio files as they appear.
+
+    Useful for DAW export folders. No integration with Reaper is implemented:
+    the user points it at any folder (documented in the README).
+    """
+    import time
+
+    chain, preset = _chain_from_args(ctx, args)
+    input_dir = Path(args.input_dir).expanduser().resolve()
+    output_dir = Path(args.output_dir).expanduser().resolve()
+    if not input_dir.is_dir():
+        raise NlvsError(f"Watch input directory not found: {input_dir}", code="WATCH_DIR_NOT_FOUND")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    extensions = {".wav", ".flac", ".mp3", ".ogg", ".m4a", ".aac", ".opus"}
+    seen: set[str] = set()
+    if args.skip_existing:
+        for candidate in input_dir.iterdir():
+            if candidate.is_file() and candidate.suffix.lower() in extensions:
+                seen.add(str(candidate.resolve()))
+    processed = 0
+    failures = 0
+    try:
+        while True:
+            pending = sorted(
+                candidate
+                for candidate in input_dir.iterdir()
+                if candidate.is_file()
+                and candidate.suffix.lower() in extensions
+                and str(candidate.resolve()) not in seen
+            )
+            for path in pending:
+                resolved = str(path.resolve())
+                print(f"[watch] new file: {path.name}", file=sys.stderr, flush=True)
+                result = run_job(
+                    ctx,
+                    job_id=full_id(),
+                    input_path=path,
+                    output_dir=output_dir,
+                    chain=chain,
+                    options=_job_options(args),
+                    preset=preset,
+                    progress=None,
+                )
+                processed += 1
+                seen.add(resolved)
+                if result.get("status") == "protected":
+                    print(
+                        f"[watch] protected: {path.name} -> {result.get('output_path')}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                else:
+                    failures += 1
+                    reasons = [item.get("error") for item in result.get("failed") or []]
+                    print(
+                        f"[watch] {result.get('status')}: {path.name} (not protected) {reasons}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+            if args.once:
+                break
+            time.sleep(max(0.2, float(args.interval)))
+    except KeyboardInterrupt:
+        print("[watch] stopped by user", file=sys.stderr, flush=True)
+    if args.once:
+        return 0 if failures == 0 else 2
+    return 0
 
 
 def cmd_doctor(ctx: AppContext, args: argparse.Namespace) -> int:
@@ -248,7 +318,7 @@ def cmd_profiles(ctx: AppContext, args: argparse.Namespace) -> int:
 
 def cmd_presets(ctx: AppContext, args: argparse.Namespace) -> int:
     if args.presets_command == "list":
-        _emit({"presets": ctx.presets.list()}, args.compact)
+        _emit({"presets": ctx.resolved_presets()}, args.compact)
         return 0
     if args.presets_command == "save":
         if not args.payload_json:
@@ -373,6 +443,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("doctor", help="read-only environment/model/tool diagnostics")
     p.set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser("watch", help="watch a folder and protect new audio files")
+    p.add_argument("--input-dir", required=True)
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--preset", default=None)
+    p.add_argument("--chain", default=None)
+    p.add_argument("--chain-file", default=None)
+    p.add_argument("--author", default=None)
+    p.add_argument("--usage-terms", default=None)
+    p.add_argument("--copyright", default=None)
+    p.add_argument("--payload-hex", default=None)
+    p.add_argument("--interval", type=float, default=2.0, help="polling interval in seconds")
+    p.add_argument("--once", action="store_true", help="process the current files once and exit")
+    p.add_argument("--skip-existing", action="store_true",
+                   help="ignore files already present when the watcher starts")
+    p.set_defaults(func=cmd_watch)
 
     p = sub.add_parser("engines", help="list engines and availability")
     p.add_argument("--install-hint", default=None, metavar="ENGINE_ID")

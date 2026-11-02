@@ -22,11 +22,15 @@ generare voci sintetiche: **nessuna funzione di clonazione è inclusa**.
 
 Gli installer non firmati mostrano l'avviso standard del sistema operativo: le build
 pubbliche sono firmate solo quando il maintainer configura le chiavi di firma. Non serve
-Python, Node o Rust: il motore Python è incluso nel pacchetto.
+Python, Node o Rust: il motore Python è incluso nel pacchetto. **Versione corrente: 1.0.0.**
 
 **Primi passi.**
-1. Apri **Proteggi**, trascina un file WAV/MP3/FLAC autorizzato e scegli un preset.
-2. Seleziona i motori disponibili (AudioSeal opzionale, anti-clone spettrale sperimentale).
+1. Apri **Proteggi**, trascina un file WAV/MP3/FLAC autorizzato e scegli un preset:
+   tre livelli — *Leggero/Pubblicazione*, *Bilanciato/Demo*, *Massimo/Studio* — oppure
+   **Personalizzato** per selezionare granularmente i singoli motori, con schede info e stato
+   reale di ciascuno.
+2. I motori non disponibili sono mostrati come tali (con suggerimento di installazione):
+   nessun pulsante morto e nessuna protezione dichiarata se il motore non è realmente eseguito.
 3. Avvia il job: ottieni un file protetto, una ricevuta firmata e il report delle operazioni.
 4. Usa **Verifica** su un file ricevuto per controllare watermark, C2PA e ricevute locali.
 5. Controlla **Motori** e **Diagnostica** per sapere cosa è realmente installato.
@@ -44,19 +48,21 @@ Python, Node o Rust: il motore Python è incluso nel pacchetto.
   `unavailable`) con motivazione.
 
 **Modelli, cache e aggiornamenti.**
+- **Tutto vive nella cartella di installazione.** La cartella dati di default è
+  `<cartella dell'eseguibile>\data` (portable di default): modelli, cache, certificati,
+  ricevute e log restano lì. **Niente `%APPDATA%`, niente cache globali** o condivise con
+  altri programmi.
 - La **release base funziona offline** e **non scarica modelli**: nessun download silenzioso,
-  né al primo avvio né durante una protezione.
-- I modelli opzionali scelti esplicitamente dall'utente finiscono in
-  `<cartella dati app>/models`:
-  Windows `%APPDATA%\com.nicotina4ever.nlvoshield\models`,
-  macOS `~/Library/Application Support/com.nicotina4ever.nlvoshield/models`,
-  Linux `~/.local/share/com.nicotina4ever.nlvoshield/models`.
-  In **modalità portable** restano in `<cartella dell'eseguibile>\NL VO Shield Data\models`,
-  attiva solo se quella cartella è scrivibile. Nessuna cache globale o condivisa con altri programmi.
+  né al primo avvio né durante una protezione. Se la cartella di installazione non è
+  scrivibile (es. MSI in `Program Files`), al primo avvio l'app **chiede all'utente** una
+  cartella scrivibile: nessun ripiego silenzioso su AppData.
 - Da **Impostazioni → Modelli / Cache** puoi vedere percorso, dimensione e stato, cambiare
   cartella, **pulire la cache** (solo file dell'app) e **riscaricare su richiesta** un modello
   con verifica checksum. I file vengono rimossi solo dopo conferma; le registrazioni
   dell'utente non vengono toccate.
+- **Disinstallazione:** rimuove programma e runtime Python. La cartella `<install>\data`
+  creata dall'app (ricevute, profili, modelli scaricati) **non viene cancellata
+  automaticamente**: se vuoi ripartire pulito, rimuovila a mano dopo la disinstallazione.
 - **Aggiornamenti:** solo da release GitHub. L'app controlla l'ultima release e propone il
   download manuale; l'aggiornamento automatico è attivo solo quando il maintainer configura
   una chiave di firma, altrimenti resta **disabilitato** e l'app lo dichiara (nessun
@@ -78,6 +84,16 @@ motori, ricevute e report. Dettagli e contratto: `docs/ARCHITECTURE.md`; packagi
 `node tooling/gen-icons.mjs`, `node tooling/leak-guard.mjs`, `tooling/build-engine-sidecar.*`,
 `tooling/package.*`.
 
+**Roadmap / integrazioni future.** Non ancora implementate nella 1.0.0 (nessun pulsante
+finto, nessuna promessa attiva):
+- **watch folder**: monitoraggio di una cartella per proteggere automaticamente i file
+  esportati (es. dal DAW);
+- **azione/script Reaper**: applicare la protezione al file esportato direttamente dal
+  progetto audio.
+
+La base è pronta per farlo: il core Python espone CLI e RPC locali, quindi queste integrazioni
+saranno wrapper sopra gli stessi comandi, senza cambiare il motore né la semantica fail-closed.
+
 ---
 
 ## English
@@ -93,11 +109,13 @@ cloning feature is included**.
 (`.exe` NSIS or `.msi`), macOS Apple Silicon/Intel (`.dmg`), Linux x64 (`.deb` or `.AppImage`).
 No Python, Node or Rust is needed: the Python engine is bundled. Unsigned builds show the
 usual OS warning; public builds are signed only when the maintainer configures signing keys.
+**Current version: 1.0.0.**
 
-**First steps.** Open **Protect**, drop an authorized WAV/MP3/FLAC file, pick a preset and the
-available engines, then run the job: you get a protected file, a signed receipt and a report.
-Use **Verify** on received files to check watermark, C2PA and local receipts, and **Engines /
-Diagnostics** to see what is really installed.
+**First steps.** Open **Protect**, drop an authorized WAV/MP3/FLAC file and choose a preset:
+three levels — *Light/Publication*, *Balanced/Demo*, *Maximum/Studio* — or **Custom** for
+granular engine selection with info cards and the real state of every engine. Unavailable
+engines are shown as such (with an install hint): no dead buttons and no "protected" claim
+unless the engine actually ran.
 
 **Engines and honest limits.** AudioSeal watermarking is **optional** (requires the optional AI
 package; not in the base build, no simulated weights). The **spectral anti-clone** engine is
@@ -106,16 +124,18 @@ proprietary models. **C2PA** proves integrity/signature, **not legal identity**.
 watermark does not prove anti-clone protection worked. Research engines without available
 weights are reported `unavailable`, never faked.
 
-**Models, cache and updates.** The **base release works offline** and never downloads models
-silently. Explicitly installed optional models live in `<app data dir>/models` (Windows
-`%APPDATA%\com.nicotina4ever.nlvoshield\models`, macOS
-`~/Library/Application Support/com.nicotina4ever.nlvoshield/models`, Linux
-`~/.local/share/com.nicotina4ever.nlvoshield/models`); portable mode uses
-`<executable folder>\NL VO Shield Data\models` when writable, never a shared global cache.
-In **Settings → Models / Cache** you can inspect paths, sizes and state, change folders, clean
-the app cache and re-download on request (checksum-verified, confirmation required). Updates
-come from GitHub releases: the app checks the latest release and offers a manual download;
-automatic update is enabled only when the maintainer configures a signing key, otherwise it is
+**Models, cache and updates.** **Everything lives inside the installation folder.** The
+default data directory is `<executable folder>/data` (portable by default): models, cache,
+certificates, receipts and logs stay there — **no `%APPDATA%`, no global caches**. The **base
+release works offline** and never downloads models silently. If the installation folder is not
+writable (e.g. MSI in `Program Files`), on first start the app **asks the user** for a writable
+folder: no silent fallback to AppData. In **Settings → Models / Cache** you can inspect
+paths/sizes/state, change folders, clean the app cache and re-download on request
+(checksum-verified, confirmation required). **Uninstall** removes the program and the Python
+runtime; the `<install>/data` folder created by the app (receipts, profiles, downloaded models)
+is **not deleted automatically** — remove it manually if you want a clean state. Updates come
+from GitHub releases: the app checks the latest release and offers a manual download; automatic
+update is enabled only when the maintainer configures a signing key, otherwise it is
 **disabled** and the app says so.
 
 **Privacy.** No telemetry. Recordings never leave the machine and are not sent to ElevenLabs or
@@ -126,4 +146,20 @@ network is used only for explicitly requested optional installs and signed updat
 over JSON-RPC stdio; the Python core handles audio I/O, the fail-closed pipeline, engines,
 receipts and reports. See `docs/ARCHITECTURE.md` and `docs/PACKAGING.md`.
 
+**Roadmap / future integrations.** Not implemented in 1.0.0 (no fake buttons, no active
+promises): a **watch folder** that protects exported files automatically, and a **Reaper
+action/script** that protects the exported take directly. The Python core already exposes the
+local CLI and RPC, so these will be thin wrappers over the same engine with the same
+fail-closed semantics.
 **Repository.** https://github.com/Nicotina4ever/NL-VO-SHIELD
+
+---
+
+## Autore / Author
+
+Nicola Lanci
+Voice Over Actor - Doppiatore e Speaker
+www.nicolalanci.com
+info@nicolalanci.com
+© 2026 Nicola Lanci — NL VO Shield
+Codice e release: github.com/Nicotina4ever/NL-VO-SHIELD · Nicotina4ever/NL-VO-SHIELD

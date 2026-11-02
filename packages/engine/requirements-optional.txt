@@ -1,0 +1,12 @@
+# NL VO Shield engine — optional AI stack.
+# Install explicitly (the base release does NOT include or download these).
+# AudioSeal model weights are then downloaded only via an explicit
+# `models download audioseal-generator|audioseal-detector` request.
+#
+# CPU wheels are sufficient; for CUDA install the matching torch build first.
+
+torch>=2.6
+torchaudio>=2.6
+audioseal>=0.2.0
+pyloudnorm>=0.2.0
+librosa>=0.10

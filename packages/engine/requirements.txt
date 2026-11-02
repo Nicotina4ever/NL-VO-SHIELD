@@ -1,0 +1,9 @@
+# NL VO Shield engine — base requirements.
+# Nothing here downloads models: the base release is fully offline for WAV/FLAC
+# processing, watermarking (DSP), fingerprint, quality metrics and receipts.
+# AI weights (AudioSeal) are optional and only downloaded on explicit request.
+
+numpy>=1.23.5,<3
+scipy>=1.15,<2
+soundfile>=0.13,<1
+cryptography>=42,<52

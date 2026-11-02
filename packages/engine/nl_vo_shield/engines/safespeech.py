@@ -35,6 +35,19 @@ class SafeSpeechEngine(BaseEngine):
         "automatically; unavailable unless the user installs a complete checkpoint set."
     )
 
+    description = (
+        "SafeSpeech (USENIX Security 2025) research anti-cloning perturbation. External "
+        "research code and checkpoints, never bundled or downloaded by NL VO Shield."
+    )
+    impact = "Would perturb the voice signal to reduce cloning fidelity (not validated here)."
+    limitations = [
+        "Not integrated in this build.",
+        "Checkpoints are incomplete in this environment (D_0.pth missing).",
+        "Requires a manual external installation by the user.",
+    ]
+    recommended_levels = ["strong"]
+    incompatible_with = ["spectral_cloak"]
+
     def __init__(self, context: Any) -> None:
         self.context = context
         self._directory = paths.find_safespeech_dir()

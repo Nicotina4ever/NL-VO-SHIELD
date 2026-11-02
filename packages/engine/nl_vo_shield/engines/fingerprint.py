@@ -58,6 +58,18 @@ class FingerprintEngine(BaseEngine):
         "similarity to an unrelated recording can only be excluded empirically."
     )
 
+    description = (
+        "Local perceptual fingerprint: a compact 64-dimension log band-energy profile used to "
+        "link a file back to a locally stored receipt."
+    )
+    impact = "No audio modification; measurement only."
+    limitations = [
+        "Not a global identity and not a speaker-recognition model.",
+        "Similarity is a heuristic; confirm with the watermark and the signed receipt.",
+    ]
+    recommended_levels = ["light", "balanced", "strong"]
+    incompatible_with = []
+
     def __init__(self, context: Any) -> None:
         self.context = context
 

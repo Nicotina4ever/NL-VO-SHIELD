@@ -90,6 +90,22 @@ class SpectralCloakEngine(BaseEngine):
         "'protection against ElevenLabs'."
     )
 
+    description = (
+        "STFT-domain anti-clone perturbation with a masking-style magnitude bound: a seeded "
+        "random perturbation is added under a smoothed spectral floor, then scaled to a target SNR."
+    )
+    impact = (
+        "Alters the spectrum slightly (target SNR 30/24/19 dB for low/medium/high). The "
+        "distortion is measured and reported per job; high strength may be audible."
+    )
+    limitations = [
+        "Anti-cloning effectiveness is NOT validated against any cloning model.",
+        "Cannot perturb digital silence (no masking reference): the step fails closed there.",
+        "Should not be stacked with other anti-clone perturbations.",
+    ]
+    recommended_levels = ["balanced", "strong"]
+    incompatible_with = ["safespeech"]
+
     def __init__(self, context: Any) -> None:
         self.context = context
 

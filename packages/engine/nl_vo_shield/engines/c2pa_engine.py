@@ -188,6 +188,22 @@ class C2PAEngine(BaseEngine):
         "legal identity."
     )
 
+    description = (
+        "C2PA Content Credentials: embeds a signed provenance manifest (software, title, "
+        "author/usage claims, protection metadata) into the audio file via c2patool."
+    )
+    impact = (
+        "Does not modify the audio samples: appends a signed manifest container. Signature "
+        "integrity and certificate trust are reported separately."
+    )
+    limitations = [
+        "The local self-signed certificate is not a public identity; trust requires a trust anchor.",
+        "C2PA improves provenance/attribution, it does not prevent cloning.",
+        "Requires c2patool 0.9.x (bundled or provided in the data directory).",
+    ]
+    recommended_levels = ["light", "balanced", "strong"]
+    incompatible_with = []
+
     def __init__(self, context: Any) -> None:
         self.context = context
         self._version_cache: str | None = None
@@ -201,7 +217,8 @@ class C2PAEngine(BaseEngine):
                 "c2patool is not available. Install c2patool 0.9.x in bin/c2patool or in the "
                 "application data directory (or set NLVS_C2PATOOL)."
             )
-        return Path(tool)
+        # External tools always receive absolute paths.
+        return Path(tool).expanduser().resolve()
 
     def availability(self) -> tuple[bool, str | None]:
         try:
@@ -390,8 +407,8 @@ class C2PAEngine(BaseEngine):
         ]
         return {
             "alg": alg,
-            "private_key": str(files["leaf_key"]),
-            "sign_cert": str(files["leaf_chain"]),
+            "private_key": str(files["leaf_key"].resolve()),
+            "sign_cert": str(files["leaf_chain"].resolve()),
             "claim_generator": f"NL VO Shield/{__version__}",
             "title": title,
             "assertions": assertions,
@@ -423,8 +440,11 @@ class C2PAEngine(BaseEngine):
             ) from exc
 
     def sign(self, input_path: Path, work_dir: Path, params: dict[str, Any], ctx: EngineContext):
-        input_path = Path(input_path)
-        work_dir = Path(work_dir)
+        # Absolute paths are mandatory: c2patool resolves manifest key/cert paths
+        # and the input relative to its own working directory.
+        input_path = Path(input_path).expanduser().resolve()
+        work_dir = Path(work_dir).expanduser().resolve()
+        work_dir.mkdir(parents=True, exist_ok=True)
         if not input_path.is_file():
             raise ToolExecutionError(f"Input for C2PA signing not found: {input_path}")
         output_path = work_dir / f"c2pa_signed{input_path.suffix or '.wav'}"
@@ -435,7 +455,8 @@ class C2PAEngine(BaseEngine):
         manifest_path = work_dir / f"c2pa_manifest_{os.getpid()}.json"
         atomic_write_text(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2))
         ctx.emit("c2pa", 10, "c2patool signing")
-        result = self._run_sign(input_path, manifest_path, output_path, work_dir)
+        with ctx.heartbeat("c2pa", 10, 70, "c2patool signing"):
+            result = self._run_sign(input_path, manifest_path, output_path, work_dir)
         if result.returncode != 0 and self.ensure_identity(alg).get("alg") == "es256":
             stderr = (result.stderr or "").strip()
             if "COSE" in stderr or "certificate" in stderr.lower():
@@ -593,7 +614,7 @@ class C2PAEngine(BaseEngine):
         }
 
     def verify(self, path: Path) -> dict[str, Any]:
-        path = Path(path)
+        path = Path(path).expanduser().resolve()
         if not path.is_file():
             return {"present": False, "valid": False, "reason": f"file not found: {path}"}
         read = self._read_manifest(path)
@@ -669,3 +690,4 @@ class C2PAEngine(BaseEngine):
         result = self.verify(Path(path))
         ok = bool(result.get("present") and result.get("valid") and result.get("data_hash_valid"))
         return {"check": "c2pa.verify", "ok": ok, "detail": result}
+

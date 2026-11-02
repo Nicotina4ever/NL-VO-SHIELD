@@ -10,6 +10,9 @@ ENGINE_INFO_KEYS = {
     "id", "name", "version", "kind", "capabilities", "supported_os",
     "status", "requires", "requires_download", "reason", "path", "quality_note",
 }
+ENGINE_INFO_EXTRA_KEYS = {
+    "description", "impact", "limitations", "recommended_levels", "incompatible_with",
+}
 
 
 def test_engine_infos_contract(ctx) -> None:
@@ -18,9 +21,13 @@ def test_engine_infos_contract(ctx) -> None:
     assert {"audioseal", "watermark_dsp", "spectral_cloak", "c2pa",
             "fingerprint", "quality", "safespeech"} <= ids
     for info in infos:
-        assert set(info) == ENGINE_INFO_KEYS, info["id"]
+        assert ENGINE_INFO_KEYS <= set(info), info["id"]
+        assert ENGINE_INFO_EXTRA_KEYS <= set(info), info["id"]
         assert info["status"] in ("available", "unavailable", "experimental", "verified")
         assert isinstance(info["capabilities"], list)
+        assert isinstance(info["limitations"], list)
+        assert isinstance(info["recommended_levels"], list)
+        assert info["description"]
         if info["status"] == "unavailable":
             assert info["reason"], info["id"]
 

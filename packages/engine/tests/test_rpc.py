@@ -82,10 +82,24 @@ class RpcClient:
         except Exception:
             pass
         try:
+            if self.proc.stdin is not None:
+                self.proc.stdin.close()
+        except Exception:
+            pass
+        try:
             self.proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             self.proc.kill()
-        stderr = self.proc.stderr.read() if self.proc.stderr else ""
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        stderr = ""
+        try:
+            if self.proc.stderr is not None:
+                stderr = self.proc.stderr.read()
+        except Exception:
+            pass
         return stderr
 
 
@@ -119,6 +133,14 @@ def test_health_and_catalog(rpc: RpcClient) -> None:
     hints = rpc.request("engines.install_hint", {"engine_id": "audioseal"})["result"]
     assert hints["no_automatic_download"] is True
 
+    presets = rpc.request("presets.list")["result"]["presets"]
+    by_id = {item["id"]: item for item in presets}
+    assert by_id["public_distribution"]["level"] == "light"
+    assert by_id["professional_demo"]["level"] == "balanced"
+    assert by_id["studio_master"]["level"] == "strong"
+    assert by_id["studio_master"]["chain"]
+    assert by_id["public_distribution"]["watermark_engine"] in ("audioseal", "watermark_dsp")
+
 
 def test_unknown_method_returns_structured_error(rpc: RpcClient) -> None:
     response = rpc.request("does.not.exist")
@@ -151,6 +173,8 @@ def test_job_start_progress_and_finished(rpc: RpcClient, tone_wav: Path, tmp_pat
     assert result["status"] == "protected"
     assert result["output_path"] is not None
     assert result["output_path"].startswith(str(output_dir))
+    assert result["finished_at"], "finished_at must always be set"
+    assert result["job_id"] == job_id
 
     status = rpc.request("job.status", {"job_id": job_id})["result"]
     assert status["state"] == "finished"
@@ -183,6 +207,7 @@ def test_job_failure_uses_the_same_job_id(rpc: RpcClient, tmp_path: Path) -> Non
     result = failed["params"]["result"]
     assert result["status"] == "failed"
     assert result["job_id"] == job_id
+    assert result["finished_at"]
     status = rpc.request("job.status", {"job_id": job_id})["result"]
     assert status["state"] == "failed"
     assert status["job_id"] == job_id

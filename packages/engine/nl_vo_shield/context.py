@@ -18,7 +18,7 @@ from .env import apply_model_env
 from .models import ModelStore
 from .receipts import ReceiptStore
 from .settings import SettingsStore
-from .store import PresetStore, ProfileStore
+from .store import WATERMARK_AUTO, PresetStore, ProfileStore, chain_from_preset
 from .engines import build_registry
 from .engines.base import EngineContext
 
@@ -103,6 +103,47 @@ class AppContext:
                 if engine is not None:
                     self.registry.register(type(engine)(self))
             return self.settings_public()
+
+    # ------------------------------------------------------------------ presets
+    def watermark_engine_id(self) -> str:
+        """AudioSeal when its weights are installed, otherwise the DSP watermark."""
+        try:
+            available, _reason = self.registry.get("audioseal").availability()
+        except Exception:
+            available = False
+        return "audioseal" if available else "watermark_dsp"
+
+    def resolve_auto_engines(self, chain: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Replace the ``watermark_auto`` placeholder with a concrete engine id."""
+        resolved: list[dict[str, Any]] = []
+        for step in chain or []:
+            if not isinstance(step, dict):
+                resolved.append(step)
+                continue
+            item = dict(step)
+            item["params"] = dict(item.get("params") or {})
+            if item.get("engine") == WATERMARK_AUTO:
+                item["engine"] = self.watermark_engine_id()
+            resolved.append(item)
+        return resolved
+
+    def preset_chain(self, preset_id: str) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        preset = self.presets.get(str(preset_id))
+        if preset is None:
+            return [], None
+        return self.resolve_auto_engines(chain_from_preset(preset)), preset
+
+    def resolved_presets(self) -> list[dict[str, Any]]:
+        resolved: list[dict[str, Any]] = []
+        for preset in self.presets.list():
+            item = dict(preset)
+            chain = self.resolve_auto_engines(chain_from_preset(preset))
+            item["chain"] = chain
+            item["watermark_engine"] = next(
+                (step.get("engine") for step in chain if step.get("action") == "embed"), None
+            )
+            resolved.append(item)
+        return resolved
 
     # ------------------------------------------------------------------ info
     def health(self) -> dict[str, Any]:

@@ -14,9 +14,12 @@ il contratto tra moduli è `docs/ARCHITECTURE.md`. Questo file spiega solo *come
    `${BASH_SOURCE[0]}`; supportano un repo in qualunque cartella.
 4. **Repo pubblico pulito**: `tooling/leak-guard.mjs` blocca percorsi di sviluppo, laboratorio
    privato, audio, chiavi, modelli e token. Gira nel packaging e in CI.
-5. **Modelli**: la build base non contiene pesi. I modelli opzionali stanno in
-   `<app_data>/NL VO Shield/models` (o accanto all'eseguibile in modalità portable) e si
-   installano/rimuovono solo su richiesta esplicita dalle Impostazioni, con checksum.
+5. **Modelli e dati**: la build base non contiene pesi. Regola di prodotto: **tutto dentro
+   la cartella di installazione**, niente `%APPDATA%`. La cartella dati di default è
+   `<cartella eseguibile>/data` (modelli, cache, certificati, ricevute, log); se non è
+   scrivibile (es. MSI in `Program Files`), l'app chiede all'utente una cartella scrivibile
+   e non ripiega in silenzio. I modelli opzionali si installano/rimuovono solo su richiesta
+   esplicita dalle Impostazioni, con checksum.
 
 ## 2. Bootstrap per piattaforma
 
@@ -105,27 +108,71 @@ powershell -ExecutionPolicy Bypass -File tooling\package.ps1 -SkipSidecar
 ./tooling/package.sh [--bundles dmg,app] [--skip-sidecar] [--skip-leak-guard]
 ```
 
-Pipeline: leak-guard → `npm ci`/`npm run build` → sidecar → `tauri build --bundles ...` →
-`dist/<version>/` con nomi stabili, `SHA256SUMS`, `BUILD-INFO.json` e scansione binaria degli
-artefatti (`leak-guard --scan`). Se `tauri build` fallisce per la firma updater, il packaging
-riprova una volta con `bundle.createUpdaterArtifacts=false` e registra la build come non firmata.
+Pipeline: leak-guard → `npm ci`/`npm run build` → sidecar → **verifica provenienza sidecar e
+policy dati** → `tauri build --bundles ...` → `dist/<version>/` con nomi stabili,
+`SHA256SUMS`, `BUILD-INFO.json` e scansione binaria degli artefatti (`leak-guard --scan`).
 
-Output tipici:
+Controlli bloccanti del packaging:
+- versione attesa **1.0.0** (`-ExpectedVersion` / `--expected-version`: rifiuta mismatch tra
+  tauri.conf.json/package.json/Cargo.toml);
+- il payload `engine/` deve essere **nativo della piattaforma**: su Windows
+  `runtime/python.exe` + `frozen/nlvo-engine/nlvo-engine.exe`, zero `.so`/`.dylib`; su
+  macOS/Linux `runtime/bin/python3` + `frozen/nlvo-engine/nlvo-engine`, zero `.exe`; il
+  `build-manifest.json` deve dichiarare la piattaforma corretta e non contenere path assoluti
+  di build (niente `K:\...`, `/mnt/...`, `python_win`);
+- nessun modello/audio nel payload (`*.pth/onnx/safetensors/gguf/wav/...` = 0 file);
+- `paths.rs` deve contenere `install_dir.join("data")` e non usare `app_data_dir()` come
+  default (policy portable); `LOCALAPPDATA` è ammesso solo come puntatore minimo alle
+  impostazioni quando la cartella install non è scrivibile, mai per dati/modelli;
+- `BUILD-INFO.json` deve riportare `data_dir_policy: "install"`, `models_bundled: false`,
+  publisher/copyright/homepage/contact/repository e la provenienza del sidecar.
+
+Se `tauri build` fallisce per la firma updater, il packaging riprova una volta con
+`bundle.createUpdaterArtifacts=false` e registra la build come non firmata.
+
+Output tipici (versione 1.0.0):
 
 ```text
-dist/0.1.0/
-  NL-VO-Shield_0.1.0_windows-x64-setup.exe
-  NL-VO-Shield_0.1.0_windows-x64.msi
-  NL-VO-Shield_0.1.0_macos-arm64.dmg
-  NL-VO-Shield_0.1.0_macos-arm64.app.tar.gz
-  NL-VO-Shield_0.1.0_linux-x64.deb
-  NL-VO-Shield_0.1.0_linux-x64.AppImage
+dist/1.0.0/
+  NL-VO-Shield_1.0.0_windows-x64-setup.exe
+  NL-VO-Shield_1.0.0_windows-x64.msi
+  NL-VO-Shield_1.0.0_macos-arm64.dmg
+  NL-VO-Shield_1.0.0_macos-arm64.app.tar.gz
+  NL-VO-Shield_1.0.0_linux-x64.deb
+  NL-VO-Shield_1.0.0_linux-x64.AppImage
   SHA256SUMS
   BUILD-INFO.json
 ```
 
-`BUILD-INFO.json` dichiara `signed`, `auto_update`, `models_bundled: false`, target e hash.
-Nessun modello, audio, chiave o dato del lab deve comparire nel bundle: la scansione blocca.
+`BUILD-INFO.json` dichiara `signed`, `auto_update`, `models_bundled: false`, target, hash,
+metadati autore e provenienza sidecar. Nessun modello, audio, chiave o dato del lab deve
+comparire nel bundle: la scansione blocca.
+
+### 5.1 Installer per-utente e cartella dati
+
+- **NSIS**: `bundle.windows.nsis.installMode = "currentUser"` (installazione nella cartella
+  utente, scrivibile) così `<install>/data` funziona senza privilegi.
+- **MSI**: per-macchina in `Program Files`, dove la scrittura può essere negata; in quel caso
+  l'app rileva `install_writable = false`, espone `needs_data_dir = true` e chiede una cartella
+  dati scrivibile. La modalità consigliata per l'uso portable è l'installer **NSIS**.
+- **Disinstallazione**: rimuove programma e runtime incluso; la cartella `<install>/data`
+  creata dall'app non viene cancellata automaticamente (contiene dati utente). Va rimossa a
+  mano se si vuole ripartire puliti.
+- **Verifica post-build**: il packaging scansiona gli artefatti per materiale privato e
+  verifica che il payload non contenga modelli/pesi; il default dati è ispezionato staticamente
+  in `paths.rs` perché deve restare relativo all'installazione.
+
+### 5.2 Metadati bundle
+
+Valori vincolanti, usati anche nel `BUILD-INFO.json` e nella pagina Informazioni:
+
+```text
+publisher/author = Nicola Lanci
+copyright        = © 2026 Nicola Lanci — NL VO Shield
+homepage         = https://www.nicolalanci.com
+contact          = info@nicolalanci.com
+repository       = https://github.com/Nicotina4ever/NL-VO-SHIELD
+```
 
 ## 6. Firma e aggiornamenti
 

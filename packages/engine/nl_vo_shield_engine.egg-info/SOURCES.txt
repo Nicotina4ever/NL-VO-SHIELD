@@ -42,6 +42,7 @@ tests/test_fail_closed.py
 tests/test_models_cache_settings.py
 tests/test_paths.py
 tests/test_pipeline.py
+tests/test_presets_chain.py
 tests/test_quality.py
 tests/test_receipts.py
 tests/test_rpc.py

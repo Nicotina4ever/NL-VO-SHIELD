@@ -29,6 +29,78 @@ def test_identity_is_generated_inside_data_dir(ctx) -> None:
     assert chain.count("BEGIN CERTIFICATE") == 2  # leaf + local root
 
 
+def test_c2pa_available_on_fresh_data_dir(tmp_path: Path) -> None:
+    """C2PA must be selectable on a new install: availability depends on the tool,
+    not on a previously generated signing identity."""
+    from nl_vo_shield.context import AppContext
+
+    fresh = AppContext(tmp_path / "fresh-data")
+    engine = fresh.registry.get("c2pa")
+    if fresh.c2patool is None:
+        pytest.skip("c2patool not installed in this environment")
+    available, reason = engine.availability()
+    assert available is True, reason
+    info = engine.info()
+    assert info.status == "available"
+    assert info.version not in (None, "", "unknown")
+    assert info.path and Path(info.path).is_file()
+    # No identity exists yet, and that must not make the engine unavailable.
+    assert engine.identity_info() is None
+
+
+def test_identity_generated_lazily_on_first_sign(tmp_path: Path, tone_wav: Path) -> None:
+    from nl_vo_shield import pipeline
+    from nl_vo_shield.context import AppContext
+    from nl_vo_shield.util import full_id
+
+    fresh = AppContext(tmp_path / "fresh-data")
+    if not c2pa_available(fresh):
+        pytest.skip("c2patool not available")
+    assert fresh.registry.get("c2pa").identity_info() is None
+    result = pipeline.run_job(
+        fresh,
+        job_id=full_id(),
+        input_path=tone_wav,
+        output_dir=tmp_path / "fresh-out",
+        chain=[{"engine": "c2pa", "action": "sign", "required": True}],
+    )
+    assert result["status"] == "protected", result.get("failed")
+    assert result["output_path"]
+    assert result["finished_at"]
+    assert fresh.registry.get("c2pa").identity_info() is not None
+    verification = fresh.registry.get("c2pa").verify(Path(result["output_path"]))
+    assert verification["valid"] is True
+
+
+def test_relative_input_and_output_paths_work(ctx, tmp_path: Path, monkeypatch) -> None:
+    """External tools must receive absolute paths even when the CLI gets relative ones."""
+    from nl_vo_shield import pipeline
+    from nl_vo_shield.util import full_id
+
+    from .conftest import write_tone
+
+    if not c2pa_available(ctx):
+        pytest.skip("c2patool not available")
+    write_tone(tmp_path / "relative-tone.wav")
+    monkeypatch.chdir(tmp_path)
+    result = pipeline.run_job(
+        ctx,
+        job_id=full_id(),
+        input_path="relative-tone.wav",
+        output_dir="relative-out",
+        chain=[
+            {"engine": "watermark_dsp", "action": "embed", "required": True},
+            {"engine": "c2pa", "action": "sign", "required": True},
+        ],
+    )
+    assert result["status"] == "protected", result.get("failed")
+    output = Path(result["output_path"])
+    assert output.is_file() and output.is_absolute()
+    verification = ctx.registry.get("c2pa").verify(output)
+    assert verification["present"] is True
+    assert verification["valid"] is True
+
+
 def test_sign_and_verify_wav(ctx, tone_wav: Path, tmp_path: Path) -> None:
     engine = _engine(ctx)
     work = tmp_path / "work"

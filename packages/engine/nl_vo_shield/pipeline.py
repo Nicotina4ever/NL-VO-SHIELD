@@ -93,6 +93,32 @@ def prepare_chain(
     if not steps:
         raise PipelineError("The protection chain is empty: nothing would be applied")
     warnings: list[str] = []
+    # Duplicate steps would silently apply the same transformation twice.
+    seen_steps: dict[tuple[str, str], int] = {}
+    for step in steps:
+        key = (step.engine, step.action)
+        seen_steps[key] = seen_steps.get(key, 0) + 1
+    duplicates = [f"{engine}.{action}" for (engine, action), count in seen_steps.items() if count > 1]
+    if duplicates:
+        raise PipelineError(
+            "Duplicate chain steps are not allowed: " + ", ".join(duplicates),
+            code="CHAIN_DUPLICATE_STEP",
+            detail={"duplicates": duplicates},
+        )
+    # Only one anti-clone perturbation can be applied meaningfully.
+    anti_clone = [
+        step.engine
+        for step in steps
+        if _engine_kind(step.engine, registry) == "anti_clone" and step.action in _TRANSFORM_ACTIONS
+    ]
+    if len(anti_clone) > 1:
+        raise PipelineError(
+            "Only one anti-clone perturbation can be applied per chain (incompatible engines: "
+            + ", ".join(anti_clone)
+            + ")",
+            code="CHAIN_INCOMPATIBLE_ANTICLONE",
+            detail={"engines": anti_clone},
+        )
     # C2PA must be the final transformation, otherwise the signature would cover
     # audio that is modified afterwards.
     provenance = [step for step in steps if _is_provenance(step, registry)]
@@ -267,8 +293,10 @@ def run_job(
 ) -> dict[str, Any]:
     """Run one fail-closed protection job and return a JobResult dict."""
     started_at = utc_now_iso()
-    input_path = Path(input_path)
-    output_dir = Path(output_dir)
+    # Normalise every path to an absolute form immediately: external tools
+    # (c2patool, ffmpeg) and the job temp directory resolution depend on it.
+    input_path = Path(input_path).expanduser().resolve()
+    output_dir = Path(output_dir).expanduser().resolve()
     options = dict(options or {})
     cancel = cancel or threading.Event()
 
@@ -288,7 +316,7 @@ def run_job(
     if input_path.resolve() == output_dir.resolve():
         raise PipelineError("The output directory cannot be the input file", code="OUTPUT_EQUALS_INPUT")
 
-    steps, chain_warnings = prepare_chain(chain, ctx.registry)
+    steps, chain_warnings = prepare_chain(ctx.resolve_auto_engines(chain), ctx.registry)
     result = _result_skeleton(job_id, started_at)
     result["requested"] = _requested_kinds(steps, ctx.registry)
     result["requested_engines"] = [step.engine for step in steps]
@@ -664,6 +692,7 @@ def run_job(
         )
         if payload is not None:
             result["watermark_payload_hex"] = f"{payload:04x}"
+        result["finished_at"] = utc_now_iso()
         return result
     finally:
         safe_rmtree(work_dir, allowed_root=output_dir)
@@ -801,6 +830,7 @@ def run_batch(
     """Run the same fail-closed chain over several files."""
     started_at = utc_now_iso()
     cancel = cancel or threading.Event()
+    output_dir = Path(output_dir).expanduser().resolve()
     if not inputs:
         raise PipelineError("Batch has no input files", code="BATCH_EMPTY")
     total = len(inputs)
