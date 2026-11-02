@@ -75,6 +75,106 @@ jobs:
       - name: Provision c2patool (macOS/Linux, build-time, checksum verified)
         if: runner.os != 'Windows'
         run: bash tooling/provision-c2patool.sh
+      - name: Engine build environment diagnostics
+        shell: bash
+        run: |
+          set -u
+          py="${NLVS_ENGINE_PYTHON:-python}"
+          echo "engine python: $py"
+          if ! "$py" -c "import sys;print('python',sys.version.split()[0])" 2>/tmp/nlvs-diag.err; then
+            while IFS= read -r line; do echo "::error::$line"; done < /tmp/nlvs-diag.err
+            exit 1
+          fi
+          if ! "$py" -c "import numpy,scipy,soundfile,librosa,cryptography,PyInstaller;print('engine deps OK')" 2>/tmp/nlvs-diag.err; then
+            while IFS= read -r line; do echo "::error::dependency failure: $line"; done < /tmp/nlvs-diag.err
+            "$py" -m pip freeze | head -60 || true
+            exit 1
+          fi
+          "$py" -m PyInstaller --version
+      - name: Build engine sidecar (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "sidecar-build.log"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/build-engine-sidecar.ps1 -SkipRuntime *>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content $log -Tail 30 | ForEach-Object { Write-Host "::error::name: Release
+
+# Build signed (when the signing secret is configured) installer artifacts for all
+# supported OSes and publish a GitHub Release on tag push.
+#
+# Signing:
+#   - TAURI_SIGNING_PRIVATE_KEY (+ optional TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+#     is read from repository secrets. It is never written to the repository.
+#   - latest.json (Tauri auto-update manifest) is attached ONLY when the build was
+#     signed. Without the secret, artifacts are UNSIGNED and auto-update stays
+#     disabled: the workflow states this instead of pretending otherwise.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Release build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            bundles: deb,appimage
+          - os: windows-latest
+            bundles: nsis,msi
+          - os: macos-14
+            bundles: dmg,app
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: packages/engine/requirements*.txt
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Linux system dependencies (WebKitGTK/GTK)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file libssl-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Install engine build dependencies (PyInstaller only)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f packages/engine/requirements.txt ]; then
+            python -m pip install -r packages/engine/requirements.txt
+          fi
+          python -m pip install -e packages/engine
+          python -m pip install pyinstaller
+          echo "NLVS_ENGINE_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Provision c2patool (Windows, build-time, checksum verified)
+        if: runner.os == 'Windows'
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/provision-c2patool.ps1
+      - name: Provision c2patool (macOS/Linux, build-time, checksum verified)
+        if: runner.os != 'Windows'
+        run: bash tooling/provision-c2patool.sh
       - name: Build engine sidecar (Windows)
         if: runner.os == 'Windows'
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/build-engine-sidecar.ps1 -SkipRuntime
@@ -167,6 +267,109 @@ jobs:
           generate_release_notes: true
           files: |
             release-assets/**
+
+
+
+" }
+            exit 1
+          }
+      - name: Build engine sidecar (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -u
+          log="$RUNNER_TEMP/sidecar-build.log"
+          if ! bash tooling/build-engine-sidecar.sh --skip-runtime >"$log" 2>&1; then
+            tail -30 "$log" | sed 's/^/::error::/'
+            exit 1
+          fi
+          tail -8 "$log"      - name: Build release bundles
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/package.ps1 \
+              -Bundles "${{ matrix.bundles }}" -SkipSidecar
+          else
+            bash tooling/package.sh --bundles "${{ matrix.bundles }}" --skip-sidecar
+          fi
+      - name: Report signing state
+        shell: bash
+        run: |
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+            echo "Signing key present: updater artifacts (.sig) must accompany the installers."
+          else
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY not configured - artifacts are UNSIGNED and auto-update is disabled."
+          fi
+      - name: Verify bundles contain no private material
+        shell: bash
+        run: node tooling/leak-guard.mjs --scan dist
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ runner.os }}-${{ matrix.bundles }}
+          path: dist/**
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Compute release version and checksums
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cd release-assets
+          find . -type f ! -name 'latest.json' ! -name 'SHA256SUMS' -print0 \
+            | sort -z | xargs -0 sha256sum > SHA256SUMS || true
+          cat SHA256SUMS || true
+      - name: Generate updater manifest (only if signed)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        shell: bash
+        run: |
+          if ! find release-assets -name '*.sig' -print -quit | grep -q .; then
+            echo "::warning::Signing key present but no .sig artifacts were produced (updater artifacts not configured in tauri.conf.json); skipping latest.json."
+            exit 0
+          fi
+          node tooling/make-latest-json.mjs \
+            --dist release-assets \
+            --version "$VERSION" \
+            --tag "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --out release-assets/latest.json
+      - name: State update policy (unsigned build)
+        if: env.TAURI_SIGNING_PRIVATE_KEY == ''
+        shell: bash
+        run: |
+          echo "::warning::No signing key: publishing UNSIGNED artifacts. Tauri auto-update is disabled (no latest.json)."
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: NL VO Shield ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          files: |
+            release-assets/**
+
 
 
 
