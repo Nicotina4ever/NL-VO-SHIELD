@@ -149,8 +149,11 @@ if [ -n "$C2PA_SOURCE" ]; then
   cp -f "$C2PA_SOURCE" "$ENGINE_DIR/bin/c2patool/c2patool"
   chmod +x "$ENGINE_DIR/bin/c2patool/c2patool"
   C2PA_TOOL="$ENGINE_DIR/bin/c2patool/c2patool"
-  C2PA_SHA="$("sha256sum" "$C2PA_TOOL" 2>/dev/null | awk '{print $1}')"
-  [ -n "$C2PA_SHA" ] || C2PA_SHA="$(shasum -a 256 "$C2PA_TOOL" 2>/dev/null | awk '{print $1}')"
+  if command -v sha256sum >/dev/null 2>&1; then
+    C2PA_SHA="$(sha256sum "$C2PA_TOOL" | awk '{print $1}')"
+  else
+    C2PA_SHA="$(shasum -a 256 "$C2PA_TOOL" | awk '{print $1}')"
+  fi
   set +e
   C2PA_VERSION_OUT="$("$C2PA_TOOL" --version 2>&1)"
   C2PA_VER_EXIT=$?
@@ -385,3 +388,4 @@ log OK "engine payload ready: $ENGINE_DIR ($(du -sh "$ENGINE_DIR" | awk '{print 
 log INFO "log: $LOG_FILE"
 log INFO 'note: macOS signing/notarization requires Apple certificates; the payload is unsigned otherwise.'
 exit 0
+

@@ -1,4 +1,4 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
 .SYNOPSIS
   NL VO Shield - package the Windows desktop installer(s) into dist/.
@@ -192,7 +192,11 @@ if (-not (Test-Path -LiteralPath $engineManifestPath -PathType Leaf)) {
 $engineManifest = Get-Content -LiteralPath $engineManifestPath -Raw | ConvertFrom-Json
 $runtimePy = Join-Path $engineDir 'runtime\python.exe'
 if (-not (Test-Path -LiteralPath $runtimePy -PathType Leaf)) {
-  Fail "engine payload is not a Windows runtime: runtime\python.exe missing (rebuild on Windows with the project Python)" 1
+  if ($engineManifest.runtime -eq $false) {
+    Write-Log WARN 'sidecar payload has no bundled runtime: frozen engine only (CI build)'
+  } else {
+    Fail "engine payload is not a Windows runtime: runtime\python.exe missing (rebuild on Windows with the project Python)" 1
+  }
 }
 $frozenExes = @(Get-ChildItem -LiteralPath (Join-Path $engineDir 'frozen') -Recurse -File -Filter '*.exe' -ErrorAction SilentlyContinue)
 if ($frozenExes.Count -eq 0) { Fail 'engine payload has no Windows frozen executable (frozen\nlvo-engine\nlvo-engine.exe missing)' 1 }
@@ -405,3 +409,4 @@ Write-Log INFO "BUILD-INFO.json: $(Join-Path $dist 'BUILD-INFO.json')"
 Write-Log INFO "log: $($script:LogFile)"
 if (-not $signed) { Write-Log WARN 'UNSIGNED build: macOS/Windows trust warnings are expected; auto-update is disabled until a signing key is configured.' }
 exit 0
+

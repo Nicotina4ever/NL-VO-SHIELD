@@ -76,10 +76,11 @@ case "$(uname -s)" in
 esac
 case "$(uname -m)" in
   x86_64|amd64) ARCH=x86_64 ;;
-  arm64|aarch64) ARCH=arm64 ;;
+  arm64|aarch64) ARCH=aarch64 ;;
   *) fail "unsupported arch: $(uname -m)" 2 ;;
 esac
 [ "$OS" = "windows" ] && ARCH=x64
+TARGET="${OS}-${ARCH}"
 
 LOG_DIR="$ROOT/.local/logs"; mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/package-$(date '+%Y%m%d-%H%M%S').log"
@@ -161,13 +162,25 @@ if [ -n "$ENGINE_PLATFORM" ] && [ "$ENGINE_PLATFORM" != "$TARGET" ]; then
 fi
 case "$OS" in
   windows)
-    [ -f "$ENGINE_DIR/runtime/python.exe" ] || fail "engine payload is not a Windows runtime: runtime/python.exe missing (rebuild on Windows with the project Python)" 1
+    if [ ! -f "$ENGINE_DIR/runtime/python.exe" ]; then
+      if [ "$(json_nested "$ENGINE_MANIFEST" runtime)" = "false" ]; then
+        log WARN 'sidecar payload has no bundled runtime: frozen engine only (CI build)'
+      else
+        fail "engine payload is not a Windows runtime: runtime/python.exe missing (rebuild on Windows with the project Python)" 1
+      fi
+    fi
     FROZEN="$(find "$ENGINE_DIR/frozen" -type f -name '*.exe' 2>/dev/null | head -n 1)"
     FOREIGN="$(find "$ENGINE_DIR" -type f \( -name '*.so' -o -name '*.dylib' -o -name 'libpython*.so*' \) 2>/dev/null | wc -l)"
     ;;
   macos|linux)
     FROZEN="$(find "$ENGINE_DIR/frozen" -type f -name 'nlvo-engine' 2>/dev/null | head -n 1)"
-    [ -x "$ENGINE_DIR/runtime/bin/python3" ] || fail "engine payload runtime/bin/python3 missing (rebuild the sidecar)" 1
+    if [ ! -x "$ENGINE_DIR/runtime/bin/python3" ]; then
+      if [ "$(json_nested "$ENGINE_MANIFEST" runtime)" = "false" ]; then
+        log WARN 'sidecar payload has no bundled runtime: frozen engine only (CI build)'
+      else
+        fail "engine payload runtime/bin/python3 missing (rebuild the sidecar)" 1
+      fi
+    fi
     FOREIGN="$(find "$ENGINE_DIR" -type f -name '*.exe' 2>/dev/null | wc -l)"
     ;;
 esac
@@ -345,3 +358,5 @@ log INFO "BUILD-INFO.json: $DIST/BUILD-INFO.json"
 log INFO "log: $LOG_FILE"
 [ "$SIGNED" -eq 0 ] && log WARN 'UNSIGNED build: OS trust warnings are expected; auto-update is disabled until a signing key is configured.'
 exit 0
+
+
