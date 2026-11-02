@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
   NL VO Shield - development bootstrap for Windows (idempotent).
@@ -369,7 +369,7 @@ $env:PYTHONUTF8 = '1'
 $env:TORCH_HOME = Join-Path $root '.local\cache\torch'
 $env:HF_HOME = Join-Path $root '.local\cache\huggingface'
 $env:NUMBA_CACHE_DIR = Join-Path $root '.local\cache\numba'
-New-Item -ItemType Directory -Force -Path (Join-Path $root '.local\tmp') | Out-Null
+if (-not $script:IsCheck) { New-Item -ItemType Directory -Force -Path (Join-Path $root '.local\tmp') | Out-Null }
 
 # ---------------- step 4: requirements
 Write-Log STEP 'step 4/6 - engine dependencies'

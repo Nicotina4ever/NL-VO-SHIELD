@@ -287,9 +287,7 @@
                 <div class="small muted">{t(builtin.descKey)}</div>
               </div>
               <span class="mono small faint">
-                {builtin.antiClone ? "anti-clone" : ""}
-                {builtin.watermark ? " · watermark" : ""}
-                {builtin.c2pa ? " · c2pa" : ""}
+                {builtin.engines.join(" → ") || t("common.none")}
               </span>
             </div>
           {/each}

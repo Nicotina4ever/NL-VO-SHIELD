@@ -151,14 +151,73 @@ const it: Dict = {
   "protect.outputDir": "Cartella di output",
   "protect.outputDirHint": "L'output viene scritto in una directory temporanea del job e spostato solo al termine.",
   "protect.preset": "Preset",
-  "protect.presetStudio": "Studio Master",
-  "protect.presetStudioDesc": "Massima protezione: perturbazione anti-clonazione forte, watermark e C2PA.",
-  "protect.presetDemo": "Professional Demo",
-  "protect.presetDemoDesc": "Watermark e C2PA con perturbazione leggera, per demo pulite.",
-  "protect.presetPublic": "Public Distribution",
-  "protect.presetPublicDesc": "Anti-clonazione media, watermark e C2PA per la pubblicazione.",
-  "protect.presetCustom": "Custom",
-  "protect.presetCustomDesc": "Scegli manualmente i passaggi e i parametri.",
+  "protect.presetStudio": "Massimo / Studio Master",
+  "protect.presetStudioDesc":
+    "Perturbazione anti-clonazione più forte, watermark e C2PA. Massima protezione, impatto sulla voce più percepibile.",
+  "protect.presetStudioImpact": "Impatto: alto sulla timbrica, adatto a master da pubblicare con cautela.",
+  "protect.presetLight": "Leggero / Pubblicazione",
+  "protect.presetLightDesc":
+    "Solo watermark e C2PA: nessuna perturbazione (a parte quella del watermark).",
+  "protect.presetLightImpact": "Impatto: minimo, voce praticamente intatta. Non ostacola la clonazione.",
+  "protect.presetBalanced": "Bilanciato / Demo Professionale",
+  "protect.presetBalancedDesc":
+    "Perturbazione leggera + watermark + C2PA: compromesso tra difesa e pulizia della demo.",
+  "protect.presetBalancedImpact": "Impatto: basso, pensato per demo e provini.",
+  "protect.presetCustom": "Personalizzato",
+  "protect.presetCustomDesc": "Scegli manualmente i motori e i parametri della catena.",
+  "protect.presetCustomImpact": "Impatto: dipende dai motori selezionati.",
+  "protect.chainEngines": "Motori della catena",
+  "protect.chainOrderHint":
+    "L'ordine applicato è anti-clonazione → watermark → C2PA (la firma sempre dopo le trasformazioni). Puoi attivare o disattivare ogni motore.",
+  "protect.roleAntiClone": "Anti-clonazione",
+  "protect.roleWatermark": "Watermark",
+  "protect.roleProvenance": "Provenance",
+  "protect.moveUp": "Sposta su",
+  "protect.moveDown": "Sposta giù",
+  "protect.engineUnavailableShort": "non disponibile",
+  "protect.noEngineForRole": "Nessun motore disponibile",
+  "protect.warnEmptyChain": "Seleziona almeno un motore: la catena è vuota.",
+  "protect.warnMultipleAnticlone":
+    "Più perturbazioni anti-clonazione nella stessa catena possono degradare l'audio senza aggiungere difesa reale.",
+  "protect.warnHighStrength":
+    "Intensità forte su una catena completa: verifica l'ascolto A/B prima di distribuire.",
+  "protect.warnMultipleWatermark":
+    "Più watermark nella stessa catena: il secondo può interferire con il primo.",
+  "protect.warnNoC2pa":
+    "Nessuna provenance C2PA: l'attribuzione non sarà verificabile tramite manifest.",
+  "protect.enginePresets": "Preset salvati nel motore",
+  "protect.useEnginePreset": "Usa questo preset",
+  "protect.presetApplied": "Preset applicato",
+  "protect.presetFallback":
+    "Alcuni motori del preset non sono disponibili: è stato scelto il primo motore disponibile della stessa categoria.",
+  "protect.engineListHint": "Stato reale da engines.list. Nessun motore viene attivato se non può eseguire.",
+
+  "player.title": "Ascolto A/B",
+  "player.play": "Riproduci",
+  "player.pause": "Pausa",
+  "player.playPause": "Riproduci o metti in pausa",
+  "player.stop": "Stop",
+  "player.sync": "Sincronizza A/B",
+  "player.loop": "Loop",
+  "player.volume": "Volume",
+  "player.lufs": "LUFS",
+  "player.peak": "Sample peak",
+  "player.truePeak": "True peak",
+  "player.clipping": "Campioni in clipping",
+  "player.snr": "SNR",
+  "player.sampleRate": "Sample rate",
+  "player.metric": "Metrica",
+  "player.input": "Originale",
+  "player.output": "Elaborato",
+  "player.listenInput": "Ascolta originale",
+  "player.listenOutput": "Ascolta protetto",
+  "player.loading": "Decodifica audio…",
+  "player.decodeError":
+    "Impossibile decodificare questo file audio nel WebView (formato non supportato o file danneggiato).",
+  "player.noTracks": "Nessuna traccia disponibile per l'ascolto.",
+  "player.seek": "cerca nella traccia",
+  "player.note":
+    "L'ascolto avviene in locale: i byte del file vengono letti dall'host e decodificati nel WebView. Nessun upload.",
   "protect.chain": "Catena di protezione",
   "protect.chainHint":
     "Ogni passaggio è eseguito dal motore Python. Lo stato «protetto» è valido solo se tutti i passaggi richiesti e le verifiche passano.",
@@ -349,6 +408,58 @@ const it: Dict = {
   "engines.kindQuality": "Qualità",
   "engines.versionLine": "versione {v}",
   "engines.gotoModels": "Apri gestione modelli",
+  "engines.details": "Dettagli",
+  "engines.detailsTitle": "Scheda motore",
+  "engines.purpose": "A cosa serve",
+  "engines.audioEffect": "Effetto sull'audio",
+  "engines.prerequisites": "Prerequisiti e pesi",
+  "engines.limits": "Limiti onesti",
+  "engines.whenToUse": "Quando conviene usarlo",
+  "engines.notAvailableHint": "Motore non disponibile in questo ambiente.",
+  "engines.purpose.anti_clone":
+    "Rende più difficile addestrare un clonatore sulla voce: altera l'impronta vocale con una perturbazione controllata.",
+  "engines.audioEffect.anti_clone":
+    "Modifica la fase/ampiezza spettrale in modo percettivamente mascherato. Con intensità alta il timbro può diventare meno naturale.",
+  "engines.prerequisites.anti_clone":
+    "DSP locale (numpy/scipy) oppure pesi di ricerca forniti dall'utente. Nessun download automatico.",
+  "engines.limits.anti_clone":
+    "Efficacia non validata contro clonatori commerciali: trattalo come sperimentale, non come garanzia.",
+  "engines.whenToUse.anti_clone":
+    "Quando il file deve essere pubblicato da solo e non serve una demo pulita: audio parlato con margine di qualità.",
+  "engines.purpose.watermark":
+    "Inserisce un identificatore rilevabile localmente per attribuire il file a una ricevuta.",
+  "engines.audioEffect.watermark":
+    "Inserisce un segnale a basso livello; con payload corto l'impatto percepito è minimo.",
+  "engines.prerequisites.watermark":
+    "AudioSeal richiede pesi e runtime opzionale; il watermark DSP richiede solo numpy/scipy.",
+  "engines.limits.watermark":
+    "Payload 16 bit: identifica la ricevuta locale, non un ID globale. Il watermark NON impedisce la clonazione.",
+  "engines.whenToUse.watermark":
+    "Su ogni file che deve restare tracciabile e verificabile in locale.",
+  "engines.purpose.provenance":
+    "Firma un manifest C2PA con autore, titolo e termini d'uso del file elaborato.",
+  "engines.audioEffect.provenance":
+    "Nessuna alterazione dei campioni: aggiunge metadati firmati al contenitore.",
+  "engines.prerequisites.provenance":
+    "c2patool disponibile e identità di firma locale (generata in data dir, mai nel repo).",
+  "engines.limits.provenance":
+    "La firma è valida ma non attribuisce un'identità legale automatica: la fiducia dipende dal certificato.",
+  "engines.whenToUse.provenance":
+    "Quando vuoi poter mostrare chi ha elaborato il file e con quali termini d'uso.",
+  "engines.purpose.fingerprint":
+    "Calcola un'impronta spettrale per collegare file derivati alle ricevute locali.",
+  "engines.audioEffect.fingerprint": "Sola analisi: non modifica l'audio.",
+  "engines.prerequisites.fingerprint": "numpy.",
+  "engines.limits.fingerprint":
+    "Impronta locale, non un riconoscimento speaker: su parlato breve o trasformazioni forti può non corrispondere.",
+  "engines.whenToUse.fingerprint": "Per verificare se un file deriva da un lavoro già protetto su questa installazione.",
+  "engines.purpose.quality":
+    "Misura peak, true peak, LUFS, clipping, SNR e spostamento spettrale.",
+  "engines.audioEffect.quality": "Sola analisi: non modifica l'audio.",
+  "engines.prerequisites.quality": "numpy e scipy.",
+  "engines.limits.quality":
+    "Misure oggettive: non sostituiscono un ascolto umano né certificano la naturalezza della voce.",
+  "engines.whenToUse.quality": "Prima e dopo la protezione, per documentare il degrado reale.",
 
   "profiles.title": "Profili e Diritti",
   "profiles.subtitle":
@@ -478,6 +589,15 @@ const it: Dict = {
   "settings.portableEnabled": "Modalità portable attiva",
   "settings.portableDisabled": "Modalità portable disattivata",
   "settings.engineSettings": "Impostazioni del motore",
+  "settings.automationSection": "Automazioni",
+  "settings.monitorFolder": "Cartella monitorata",
+  "settings.monitorFolderHint":
+    "Applicherebbe automaticamente la protezione ai nuovi file audio esportati nella cartella scelta.",
+  "settings.comingSoon": "In arrivo",
+  "settings.comingSoonHint": "Funzione non ancora disponibile nel motore: nessun pulsante finto.",
+  "settings.reaper": "Integrazione Reaper",
+  "settings.reaperHint":
+    "Prevista in una versione futura: nessuna estensione o azione automatica è inclusa in questa build.",
   "settings.engineSettingsUnavailable": "Motore non collegato: vengono salvate solo le preferenze dell'interfaccia.",
   "settings.rawSettings": "JSON del motore",
 
@@ -494,11 +614,19 @@ const it: Dict = {
 
   "about.owner": "Titolare e autore",
   "about.ownerName": "Nicola Lanci",
+  "about.ownerRole": "Voice Over Actor - Doppiatore e Speaker",
   "about.brandMeaning": "NL = Nicola Lanci",
   "about.site": "www.nicolalanci.com",
   "about.email": "info@nicolalanci.com",
   "about.copyright": "© 2026 Nicola Lanci — NL VO Shield",
+  "about.repoLabel": "Codice e release:",
+  "about.repoName": "github.com/Nicotina4ever/NL-VO-SHIELD",
+  "about.profileName": "Nicotina4ever/NL-VO-SHIELD",
+  "about.appVersionLine": "Versione applicazione {v}",
+  "about.engineVersionLine": "Versione motore {v}",
   "about.repoNote": "Codice e release: github.com/Nicotina4ever/NL-VO-SHIELD",
+  "about.reaperNote":
+    "Integrazione con Reaper: prevista, non inclusa in questa versione (nessuna funzione simulata).",
 
   "diagnostics.title": "Diagnostica",
   "diagnostics.subtitle":
@@ -737,14 +865,71 @@ const en: Dict = {
   "protect.outputDir": "Output folder",
   "protect.outputDirHint": "The output is written into the job's temporary folder and moved only when finished.",
   "protect.preset": "Preset",
-  "protect.presetStudio": "Studio Master",
-  "protect.presetStudioDesc": "Maximum protection: strong anti-cloning perturbation, watermark and C2PA.",
-  "protect.presetDemo": "Professional Demo",
-  "protect.presetDemoDesc": "Watermark and C2PA with light perturbation, for clean demos.",
-  "protect.presetPublic": "Public Distribution",
-  "protect.presetPublicDesc": "Medium anti-cloning, watermark and C2PA for publication.",
+  "protect.presetStudio": "Maximum / Studio Master",
+  "protect.presetStudioDesc":
+    "Stronger anti-cloning perturbation, watermark and C2PA. Maximum protection, more audible impact on the voice.",
+  "protect.presetStudioImpact": "Impact: high on timbre, publish with care.",
+  "protect.presetLight": "Light / Publication",
+  "protect.presetLightDesc": "Watermark and C2PA only: no perturbation (besides the watermark itself).",
+  "protect.presetLightImpact": "Impact: minimal, voice essentially untouched. Does not hinder cloning.",
+  "protect.presetBalanced": "Balanced / Professional Demo",
+  "protect.presetBalancedDesc":
+    "Light perturbation + watermark + C2PA: a trade-off between defense and demo cleanliness.",
+  "protect.presetBalancedImpact": "Impact: low, designed for demos and auditions.",
   "protect.presetCustom": "Custom",
-  "protect.presetCustomDesc": "Pick steps and parameters manually.",
+  "protect.presetCustomDesc": "Pick engines and parameters manually.",
+  "protect.presetCustomImpact": "Impact: depends on the selected engines.",
+  "protect.chainEngines": "Chain engines",
+  "protect.chainOrderHint":
+    "Applied order is anti-cloning → watermark → C2PA (the signature always comes after audio transformations). You can enable or disable each engine.",
+  "protect.roleAntiClone": "Anti-cloning",
+  "protect.roleWatermark": "Watermark",
+  "protect.roleProvenance": "Provenance",
+  "protect.moveUp": "Move up",
+  "protect.moveDown": "Move down",
+  "protect.engineUnavailableShort": "unavailable",
+  "protect.noEngineForRole": "No engine available",
+  "protect.warnEmptyChain": "Select at least one engine: the chain is empty.",
+  "protect.warnMultipleAnticlone":
+    "Multiple anti-cloning perturbations in the same chain can degrade audio without adding real defense.",
+  "protect.warnHighStrength":
+    "High strength on a full chain: use the A/B listening before distributing.",
+  "protect.warnMultipleWatermark":
+    "Multiple watermarks in the same chain: the second may interfere with the first.",
+  "protect.warnNoC2pa": "No C2PA provenance: attribution will not be verifiable via manifest.",
+  "protect.enginePresets": "Presets stored in the engine",
+  "protect.useEnginePreset": "Use this preset",
+  "protect.presetApplied": "Preset applied",
+  "protect.presetFallback":
+    "Some preset engines are unavailable: the first available engine of the same category was used.",
+  "protect.engineListHint": "Real status from engines.list. No engine is enabled unless it can run.",
+
+  "player.title": "A/B listening",
+  "player.play": "Play",
+  "player.pause": "Pause",
+  "player.playPause": "Play or pause",
+  "player.stop": "Stop",
+  "player.sync": "Sync A/B",
+  "player.loop": "Loop",
+  "player.volume": "Volume",
+  "player.lufs": "LUFS",
+  "player.peak": "Sample peak",
+  "player.truePeak": "True peak",
+  "player.clipping": "Clipping samples",
+  "player.snr": "SNR",
+  "player.sampleRate": "Sample rate",
+  "player.metric": "Metric",
+  "player.input": "Original",
+  "player.output": "Processed",
+  "player.listenInput": "Listen to original",
+  "player.listenOutput": "Listen to protected",
+  "player.loading": "Decoding audio…",
+  "player.decodeError":
+    "Cannot decode this audio file in the WebView (unsupported format or damaged file).",
+  "player.noTracks": "No track available for listening.",
+  "player.seek": "seek in track",
+  "player.note":
+    "Listening is local: the file bytes are read by the host and decoded in the WebView. No upload.",
   "protect.chain": "Protection chain",
   "protect.chainHint":
     "Every step runs in the Python engine. “Protected” is valid only when all required steps and verifications pass.",
@@ -934,6 +1119,58 @@ const en: Dict = {
   "engines.kindQuality": "Quality",
   "engines.versionLine": "version {v}",
   "engines.gotoModels": "Open model management",
+  "engines.details": "Details",
+  "engines.detailsTitle": "Engine card",
+  "engines.purpose": "What it is for",
+  "engines.audioEffect": "Effect on audio",
+  "engines.prerequisites": "Prerequisites and weights",
+  "engines.limits": "Honest limits",
+  "engines.whenToUse": "When to use it",
+  "engines.notAvailableHint": "Engine not available in this environment.",
+  "engines.purpose.anti_clone":
+    "Makes it harder to train a cloner on the voice: it alters the vocal imprint with a bounded perturbation.",
+  "engines.audioEffect.anti_clone":
+    "Changes spectral phase/amplitude in a perceptually masked way. High strength can make timbre less natural.",
+  "engines.prerequisites.anti_clone":
+    "Local DSP (numpy/scipy) or user-provided research weights. No automatic download.",
+  "engines.limits.anti_clone":
+    "Effectiveness against commercial cloners is not validated: treat it as experimental, not a guarantee.",
+  "engines.whenToUse.anti_clone":
+    "When the file will be published alone and a clean demo is not required, with speech that has quality headroom.",
+  "engines.purpose.watermark":
+    "Embeds a locally detectable identifier to link the file to a receipt.",
+  "engines.audioEffect.watermark":
+    "Embeds a low-level signal; with a short payload the perceived impact is minimal.",
+  "engines.prerequisites.watermark":
+    "AudioSeal needs weights and the optional runtime; the DSP watermark only needs numpy/scipy.",
+  "engines.limits.watermark":
+    "16-bit payload: it identifies the local receipt, not a global ID. A watermark does NOT prevent cloning.",
+  "engines.whenToUse.watermark": "On every file that must remain traceable and locally verifiable.",
+  "engines.purpose.provenance":
+    "Signs a C2PA manifest with author, title and usage terms of the processed file.",
+  "engines.audioEffect.provenance":
+    "No sample alteration: signed metadata is added to the container.",
+  "engines.prerequisites.provenance":
+    "c2patool available and a local signing identity (generated in the data folder, never in the repo).",
+  "engines.limits.provenance":
+    "The signature is valid but does not grant a legal identity automatically: trust depends on the certificate.",
+  "engines.whenToUse.provenance":
+    "When you need to show who processed the file and under which usage terms.",
+  "engines.purpose.fingerprint":
+    "Computes a spectral imprint to link derived files back to local receipts.",
+  "engines.audioEffect.fingerprint": "Analysis only: it does not modify audio.",
+  "engines.prerequisites.fingerprint": "numpy.",
+  "engines.limits.fingerprint":
+    "Local imprint, not speaker recognition: on short speech or heavy transformations it may not match.",
+  "engines.whenToUse.fingerprint":
+    "To check whether a file derives from work already protected on this installation.",
+  "engines.purpose.quality":
+    "Measures peak, true peak, LUFS, clipping, SNR and spectral shift.",
+  "engines.audioEffect.quality": "Analysis only: it does not modify audio.",
+  "engines.prerequisites.quality": "numpy and scipy.",
+  "engines.limits.quality":
+    "Objective measurements: they do not replace human listening or certify voice naturalness.",
+  "engines.whenToUse.quality": "Before and after protection, to document the real degradation.",
 
   "profiles.title": "Profiles & Rights",
   "profiles.subtitle":
@@ -1064,6 +1301,15 @@ const en: Dict = {
   "settings.portableEnabled": "Portable mode enabled",
   "settings.portableDisabled": "Portable mode disabled",
   "settings.engineSettings": "Engine settings",
+  "settings.automationSection": "Automation",
+  "settings.monitorFolder": "Watched folder",
+  "settings.monitorFolderHint":
+    "Would automatically protect new audio files exported into the chosen folder.",
+  "settings.comingSoon": "Coming soon",
+  "settings.comingSoonHint": "Feature not available in the engine yet: no fake buttons.",
+  "settings.reaper": "Reaper integration",
+  "settings.reaperHint":
+    "Planned for a future version: no extension or automatic action is included in this build.",
   "settings.engineSettingsUnavailable": "Engine not connected: only interface preferences are saved.",
   "settings.rawSettings": "Engine JSON",
 
@@ -1080,11 +1326,19 @@ const en: Dict = {
 
   "about.owner": "Owner and author",
   "about.ownerName": "Nicola Lanci",
+  "about.ownerRole": "Voice Over Actor - Doppiatore e Speaker",
   "about.brandMeaning": "NL = Nicola Lanci",
   "about.site": "www.nicolalanci.com",
   "about.email": "info@nicolalanci.com",
   "about.copyright": "© 2026 Nicola Lanci — NL VO Shield",
+  "about.repoLabel": "Code and releases:",
+  "about.repoName": "github.com/Nicotina4ever/NL-VO-SHIELD",
+  "about.profileName": "Nicotina4ever/NL-VO-SHIELD",
+  "about.appVersionLine": "Application version {v}",
+  "about.engineVersionLine": "Engine version {v}",
   "about.repoNote": "Code and releases: github.com/Nicotina4ever/NL-VO-SHIELD",
+  "about.reaperNote":
+    "Reaper integration: planned, not included in this version (no simulated features).",
 
   "diagnostics.title": "Diagnostics",
   "diagnostics.subtitle":

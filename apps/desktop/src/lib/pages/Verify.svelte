@@ -6,10 +6,11 @@
   import { engineApi } from "../ipc";
   import { pickAudioFile, pickSavePath } from "../dialogs";
   import { verifyOutcomeTone, formatNumber, formatDate, basename } from "../format";
-  import type { Receipt, VerifyResult } from "../types";
+  import type { QualityMetrics, Receipt, VerifyResult } from "../types";
   import Icon from "../components/Icon.svelte";
   import Badge from "../components/Badge.svelte";
   import Waveform from "../components/Waveform.svelte";
+  import AudioPlayer from "../components/AudioPlayer.svelte";
 
   let path = $state("");
   let verifying = $state(false);
@@ -190,6 +191,18 @@
           </ul>
         </div>
       {/if}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head">
+      <h2>{t("player.title")}</h2>
+    </div>
+    <div class="card__body">
+      <AudioPlayer
+        tracks={path ? [{ label: t("player.input"), path }] : []}
+        inputQuality={quality as QualityMetrics | null}
+      />
     </div>
   </div>
 

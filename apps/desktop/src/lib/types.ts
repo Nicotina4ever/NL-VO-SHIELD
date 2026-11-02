@@ -415,6 +415,12 @@ export interface EngineLogLine {
   line: string;
 }
 
+/** Traccia audio per il player A/B (percorso assoluto restituito dal motore). */
+export interface AudioTrack {
+  label: string;
+  path: string;
+}
+
 export interface EngineStatusEvent {
   state: "starting" | "ready" | "crashed" | "stopped" | "restarting";
   message?: string | null;

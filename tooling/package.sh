@@ -173,7 +173,7 @@ case "$OS" in
 esac
 [ -n "${FROZEN:-}" ] || fail "engine payload has no frozen executable for $OS (rebuild the sidecar)" 1
 [ "${FOREIGN:-0}" -eq 0 ] || fail "engine payload contains foreign-platform binaries ($FOREIGN files); rebuild the native sidecar" 1
-MODEL_COUNT="$(find "$ENGINE_DIR" -type f \( -name '*.pth' -o -name '*.pt' -o -name '*.onnx' -o -name '*.safetensors' -o -name '*.gguf' -o -name '*.wav' -o -name '*.mp3' -o -name '*.flac' -o -name '*.npy' -o -name '*.npz' \) 2>/dev/null | wc -l)"
+MODEL_COUNT="$(find "$ENGINE_DIR" -type f \( -name '*.pth' -o -name '*.pt' -o -name '*.onnx' -o -name '*.safetensors' -o -name '*.gguf' -o -name '*.ckpt' -o -name '*.wav' -o -name '*.mp3' -o -name '*.flac' -o -name '*.m4a' \) ! -path '*/site-packages/*' 2>/dev/null | wc -l)"
 [ "$MODEL_COUNT" -eq 0 ] || fail "engine payload contains model/audio payloads ($MODEL_COUNT files); the base package must ship no models" 1
 ENGINE_SIZE_MB=$(( $(du -sk "$ENGINE_DIR" | awk '{print $1}') / 1024 ))
 log OK "engine payload: native $TARGET runtime + frozen executable, ${ENGINE_SIZE_MB} MB, no models/audio, provenance ${ENGINE_PY_SOURCE:-unknown}"

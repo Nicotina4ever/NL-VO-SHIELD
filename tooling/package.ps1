@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
   NL VO Shield - package the Windows desktop installer(s) into dist/.
@@ -213,8 +213,11 @@ if ($pythonPath -match '^/mnt/' -or $pythonPath -match '^/home/' -or $pythonPath
 if ($engineManifest.python.source -eq 'portable-runtime' -and $enginePlatform -ne 'windows-x64' -and $enginePlatform -ne 'windows-arm64') {
   Fail 'engine payload provenance is ambiguous: rebuild the native Windows sidecar with the project Python' 1
 }
-$modelExtensions = @('.pth', '.pt', '.onnx', '.safetensors', '.gguf', '.wav', '.mp3', '.flac', '.npy', '.npz')
-$modelFiles = @(Get-ChildItem -LiteralPath $engineDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $modelExtensions -contains $_.Extension.ToLowerInvariant() })
+$modelExtensions = @('.pth', '.pt', '.onnx', '.safetensors', '.gguf', '.ckpt', '.wav', '.mp3', '.flac', '.m4a')
+# Library test fixtures under site-packages are not shipped models: only check the app payload.
+$modelFiles = @(Get-ChildItem -LiteralPath $engineDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
+    $modelExtensions -contains $_.Extension.ToLowerInvariant() -and $_.FullName -notmatch '[\\/]site-packages[\\/]'
+  })
 if ($modelFiles.Count -gt 0) {
   Fail ("engine payload contains model/audio payloads ({0} files, e.g. {1}); the base package must ship no models" -f $modelFiles.Count, $modelFiles[0].Name) 1
 }

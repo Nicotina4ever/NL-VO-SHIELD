@@ -120,8 +120,17 @@ class JobManager:
         try:
             result = runner(emit, record["cancel"])
             record["result"] = result
-            record["state"] = "cancelled" if result.get("status") == "cancelled" else "finished"
-            self._notify(finished_method, {"job_id": job_id, **record["extra"], "result": result})
+            status = str(result.get("status"))
+            if status == "failed":
+                # Fail-closed result: the job completed but did not succeed.
+                record["state"] = "failed"
+                self._notify(failed_method, {"job_id": job_id, **record["extra"], "result": result})
+            elif status == "cancelled":
+                record["state"] = "cancelled"
+                self._notify(finished_method, {"job_id": job_id, **record["extra"], "result": result})
+            else:
+                record["state"] = "finished"
+                self._notify(finished_method, {"job_id": job_id, **record["extra"], "result": result})
         except Exception as exc:
             log.error("Job %s failed: %s", job_id, exc, exc_info=True)
             failure = failure_result(
@@ -560,6 +569,49 @@ class RpcServer:
         return {"ok": True}
 
 
+def _warm_up_imports(ctx: AppContext) -> dict[str, Any]:
+    """Import heavy native libraries in the main thread before serving.
+
+    On Windows, importing scipy/torch (native DLL initialization) from a worker
+    thread while the main thread is blocked reading stdin can deadlock. Warming
+    the imports here removes that class of hangs and lowers first-job latency.
+    """
+    import importlib
+    import importlib.util
+    import time
+
+    modules = [
+        "numpy",
+        "soundfile",
+        "scipy",
+        "scipy.signal",
+        "scipy.ndimage",
+        "scipy.linalg",
+        "cryptography",
+        "pyloudnorm",
+    ]
+    try:
+        models_ready, _reason = ctx.models.is_ready("audioseal")
+    except Exception:
+        models_ready = False
+    if models_ready and importlib.util.find_spec("torch") is not None:
+        modules += ["torch", "audioseal"]
+    started = time.time()
+    warmed: list[str] = []
+    failed: dict[str, str] = {}
+    for name in modules:
+        try:
+            importlib.import_module(name)
+            warmed.append(name)
+        except Exception as exc:  # optional libraries may be absent
+            failed[name] = f"{type(exc).__name__}: {exc}"
+    return {
+        "seconds": round(time.time() - started, 2),
+        "warmed": warmed,
+        "failed": failed,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -584,6 +636,13 @@ def main(argv: list[str] | None = None) -> int:
         log.error("Cannot start the engine: %s", exc)
         print(json.dumps({"jsonrpc": "2.0", "id": None, "error": exc.to_dict()}), flush=True)
         return 1
+    warmup = _warm_up_imports(ctx)
+    log.info(
+        "Engine warm-up: %.2fs (%d modules)%s",
+        warmup["seconds"],
+        len(warmup["warmed"]),
+        f"; unavailable: {sorted(warmup['failed'])}" if warmup["failed"] else "",
+    )
     server = RpcServer(ctx)
     try:
         return server.serve()

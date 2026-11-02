@@ -9,7 +9,17 @@
     path = null,
     tall = false,
     label = "",
-  }: { path?: string | null; tall?: boolean; label?: string } = $props();
+    playhead = null,
+    onseek = undefined,
+    interactive = false,
+  }: {
+    path?: string | null;
+    tall?: boolean;
+    label?: string;
+    playhead?: number | null;
+    onseek?: (fraction: number) => void;
+    interactive?: boolean;
+  } = $props();
 
   let canvas = $state<HTMLCanvasElement | undefined>(undefined);
   let data = $state<WaveformData | null>(null);
@@ -19,7 +29,32 @@
 
   function draw(): void {
     if (!canvas) return;
-    drawWaveform(canvas, data);
+    drawWaveform(canvas, data, { playhead });
+  }
+
+  function seekFromEvent(event: MouseEvent): void {
+    if (!interactive || !onseek) return;
+    const target = event.currentTarget as HTMLCanvasElement;
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    onseek((event.clientX - rect.left) / rect.width);
+  }
+
+  function handleKey(event: KeyboardEvent): void {
+    if (!interactive || !onseek) return;
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      onseek(Math.min(1, (playhead ?? 0) + 0.02));
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      onseek(Math.max(0, (playhead ?? 0) - 0.02));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      onseek(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      onseek(1);
+    }
   }
 
   $effect(() => {
@@ -48,9 +83,10 @@
       });
   });
 
-  // ridisegna quando cambiano dati, tema o dimensione della finestra
+  // ridisegna quando cambiano dati, playhead, tema o dimensione della finestra
   $effect(() => {
     void data;
+    void playhead;
     void ui.theme;
     draw();
     const onResize = () => draw();
@@ -71,7 +107,20 @@
     </div>
   {/if}
   <div style="position:relative">
-    <canvas bind:this={canvas} class="wave {tall ? 'wave--tall' : ''}" aria-hidden="true"></canvas>
+    <canvas
+      bind:this={canvas}
+      class="wave {tall ? 'wave--tall' : ''}"
+      style={interactive ? "cursor:crosshair" : ""}
+      role={interactive ? "slider" : undefined}
+      tabindex={interactive ? 0 : undefined}
+      aria-label={interactive ? `${label || t("protect.preview")} — ${t("player.seek")}` : undefined}
+      aria-valuemin={interactive ? 0 : undefined}
+      aria-valuemax={interactive ? 100 : undefined}
+      aria-valuenow={interactive ? Math.round((playhead ?? 0) * 100) : undefined}
+      aria-hidden={interactive ? undefined : "true"}
+      onclick={seekFromEvent}
+      onkeydown={handleKey}
+    ></canvas>
     <span class="sr-only">
       {label || t("protect.preview")}
       {#if data?.supported}

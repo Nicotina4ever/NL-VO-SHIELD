@@ -6,6 +6,7 @@
     engine,
     loadProfiles,
     loadSettings,
+    loadPresets,
     engineUsableReason,
   } from "../engine.svelte";
   import {
@@ -18,60 +19,63 @@
   import {
     BUILTIN_PRESETS,
     buildChain,
+    chainWarnings,
     describeChain,
     findPreset,
+    roleForKind,
+    resolvePresetSelections,
+    actionForRole,
+    type Selection,
     type Strength,
+    type StepRole,
   } from "../presets";
   import { AUDIO_EXTENSIONS, pickAudioFile, pickDirectory, pickSavePath } from "../dialogs";
   import { engineApi, isTauri } from "../ipc";
   import { basename, fileExtension } from "../format";
-  import type { JobResult } from "../types";
+  import type { JobResult, Preset } from "../types";
   import Icon from "../components/Icon.svelte";
   import Badge from "../components/Badge.svelte";
   import Waveform from "../components/Waveform.svelte";
   import ProgressBar from "../components/ProgressBar.svelte";
   import StepList from "../components/StepList.svelte";
   import JobResultView from "../components/JobResultView.svelte";
+  import AudioPlayer from "../components/AudioPlayer.svelte";
 
   let inputPath = $state<string | null>(null);
   let outputDir = $state("");
-  let presetId = $state("studio_master");
-  let antiCloneOn = $state(true);
-  let watermarkOn = $state(true);
-  let c2paOn = $state(true);
-  let strength = $state<Strength>("high");
+  let presetId = $state("balanced_demo");
+  let selections = $state<Selection[]>([]);
+  let strength = $state<Strength>("light");
   let verifyAfter = $state(true);
   let payloadHex = $state("");
   let manifestTitle = $state("");
   let profileId = $state("");
   let advancedOpen = $state(false);
   let dragging = $state(false);
-  let antiCloneEngine = $state("");
-  let watermarkEngine = $state("");
+  let presetFallback = $state(false);
 
   let lastOpenRequest = 0;
   let lastStartRequest = 0;
+  let defaultsApplied = false;
 
-  const antiCloneEngines = $derived(engine.engines.filter((item) => item.kind === "anti_clone"));
-  const watermarkEngines = $derived(engine.engines.filter((item) => item.kind === "watermark"));
-
-  const preset = $derived(findPreset(presetId) ?? BUILTIN_PRESETS[0]);
+  const preset = $derived(findPreset(presetId) ?? BUILTIN_PRESETS[1]);
   const selectedProfile = $derived(engine.profiles.find((item) => item.id === profileId) ?? null);
 
+  const chainEngines = $derived(
+    engine.engines.filter((item) => roleForKind(item.kind) !== null),
+  );
+
   const chain = $derived(
-    buildChain({
-      antiClone: antiCloneOn,
-      watermark: watermarkOn,
-      c2pa: c2paOn,
+    buildChain(selections, {
       strength,
-      antiCloneEngine,
-      watermarkEngine,
       payloadHex,
       manifestTitle,
       author: selectedProfile?.name ?? undefined,
       usageTerms: selectedProfile?.usage_terms ?? undefined,
     }),
   );
+
+  const warnings = $derived(chainWarnings(selections, strength));
 
   const blockedReasons = $derived(
     chain
@@ -88,21 +92,95 @@
   );
 
   const outputWaveformPath = $derived(single.result?.output_path ?? null);
+  const listenTracks = $derived(
+    inputPath && single.result?.output_path
+      ? [
+          { label: t("player.input"), path: inputPath },
+          { label: t("player.output"), path: single.result.output_path },
+        ]
+      : inputPath
+        ? [{ label: t("player.input"), path: inputPath }]
+        : [],
+  );
+
+  function roleLabel(role: StepRole): string {
+    if (role === "anti_clone") return t("protect.roleAntiClone");
+    if (role === "watermark") return t("protect.roleWatermark");
+    return t("protect.roleProvenance");
+  }
+
+  function roleOrder(role: StepRole): number {
+    return role === "anti_clone" ? 0 : role === "watermark" ? 1 : 2;
+  }
+
+  function orderedSelections(): Selection[] {
+    return [...selections].sort((left, right) => {
+      const order = roleOrder(left.role) - roleOrder(right.role);
+      return order === 0 ? selections.indexOf(left) - selections.indexOf(right) : order;
+    });
+  }
 
   function applyPreset(id: string): void {
     presetId = id;
     const found = findPreset(id);
     if (!found) return;
-    if (!found.custom) {
-      antiCloneOn = found.antiClone;
-      watermarkOn = found.watermark;
-      c2paOn = found.c2pa;
-      strength = found.strength;
+    if (found.custom) {
+      strength = "medium";
+      return;
     }
+    strength = found.strength;
+    const resolved = resolvePresetSelections(found, engine.engines);
+    presetFallback =
+      resolved.length !== found.engines.length ||
+      resolved.some((selection) => !found.engines.includes(selection.engine));
+    selections = resolved;
   }
 
-  function markCustom(): void {
+  function applyEnginePreset(presetItem: Preset): void {
+    const found = findPreset(presetId);
+    void found;
+    const next: Selection[] = [];
+    for (const step of (presetItem.chain as { engine: string }[] | null) ?? []) {
+      const info = engine.engines.find((item) => item.id === step.engine);
+      const role = roleForKind(info?.kind) ?? "watermark";
+      if (!next.some((selection) => selection.engine === step.engine)) {
+        next.push({ engine: step.engine, role });
+      }
+    }
+    selections = next;
+    presetId = "custom";
+    toast("info", t("protect.presetApplied"), presetItem.name);
+  }
+
+  function toggleEngine(engineId: string, role: StepRole): void {
+    const exists = selections.some((selection) => selection.engine === engineId);
+    selections = exists
+      ? selections.filter((selection) => selection.engine !== engineId)
+      : [...selections, { engine: engineId, role }];
     if (presetId !== "custom") presetId = "custom";
+  }
+
+  function moveSelection(engineId: string, direction: -1 | 1): void {
+    const ordered = orderedSelections();
+    const index = ordered.findIndex((selection) => selection.engine === engineId);
+    if (index < 0) return;
+    const current = ordered[index];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= ordered.length) return;
+    const target = ordered[targetIndex];
+    if (target.role !== current.role) return;
+    const byEngine = (selection: Selection) => selection.engine;
+    const currentIndex = selections.findIndex((selection) => selection.engine === byEngine(current));
+    const targetPos = selections.findIndex((selection) => selection.engine === byEngine(target));
+    const next = [...selections];
+    next[currentIndex] = target;
+    next[targetPos] = current;
+    selections = next;
+    if (presetId !== "custom") presetId = "custom";
+  }
+
+  function isSelected(engineId: string): boolean {
+    return selections.some((selection) => selection.engine === engineId);
   }
 
   function acceptFile(path: string): void {
@@ -188,6 +266,7 @@
     void (async () => {
       if (engine.profiles.length === 0) void loadProfiles();
       if (!engine.settings) void loadSettings();
+      if (engine.presets.length === 0) void loadPresets();
     })();
 
     let unlisten: (() => void) | undefined;
@@ -215,6 +294,14 @@
     return () => unlisten?.();
   });
 
+  // preset iniziale quando il registro motori è disponibile
+  $effect(() => {
+    if (defaultsApplied) return;
+    if (engine.engines.length === 0) return;
+    defaultsApplied = true;
+    applyPreset("balanced_demo");
+  });
+
   // Ctrl+O globale → apri file
   $effect(() => {
     const request = ui.openFileRequest;
@@ -229,21 +316,6 @@
     if (request === lastStartRequest) return;
     lastStartRequest = request;
     if (ui.page === "protect") void start();
-  });
-
-  // Motori predefiniti: il primo disponibile per ciascuna categoria.
-  $effect(() => {
-    if (engine.engines.length === 0) return;
-    if (!antiCloneEngines.some((item) => item.id === antiCloneEngine && item.status !== "unavailable")) {
-      const pick =
-        antiCloneEngines.find((item) => item.status !== "unavailable") ?? antiCloneEngines[0];
-      if (pick && antiCloneEngine !== pick.id) antiCloneEngine = pick.id;
-    }
-    if (!watermarkEngines.some((item) => item.id === watermarkEngine && item.status !== "unavailable")) {
-      const pick =
-        watermarkEngines.find((item) => item.status !== "unavailable") ?? watermarkEngines[0];
-      if (pick && watermarkEngine !== pick.id) watermarkEngine = pick.id;
-    }
   });
 
   // Cartella di output predefinita dalla configurazione host
@@ -295,9 +367,9 @@
                   {t("protect.replace")}
                 </button>
               </div>
-              <Waveform path={inputPath} label={t("protect.inputPreview")} tall />
+              <Waveform path={inputPath} label={t("protect.inputPreview")} />
               {#if outputWaveformPath}
-                <Waveform path={outputWaveformPath} label={t("protect.outputPreview")} tall />
+                <Waveform path={outputWaveformPath} label={t("protect.outputPreview")} />
               {/if}
             </div>
           {:else}
@@ -305,12 +377,6 @@
               class="dropzone {dragging ? 'dropzone--active' : ''}"
               style="width:100%"
               onclick={() => void pickInput()}
-              ondragover={(event) => {
-                event.preventDefault();
-                dragging = true;
-              }}
-              ondragleave={() => (dragging = false)}
-              ondrop={(event) => event.preventDefault()}
             >
               <Icon name="file" size={28} />
               <span class="dropzone__title">{t("protect.dropTitle")}</span>
@@ -336,7 +402,7 @@
         <div class="card__head">
           <h2>{t("protect.preset")}</h2>
           <span class="spacer"></span>
-          <span class="small faint">{t(preset.descKey)}</span>
+          <span class="small faint">{t(preset.impactKey)}</span>
         </div>
         <div class="card__body">
           <div class="grid grid-2" style="gap:10px">
@@ -347,188 +413,228 @@
                 onclick={() => applyPreset(item.id)}
                 aria-pressed={presetId === item.id}
               >
-                <span class="dropzone__title">{t(item.nameKey)}</span>
+                <span class="row gap-sm" style="align-items:center">
+                  {#if item.level > 0}<span class="badge badge--brand">{item.level}/3</span>{/if}
+                  <span class="dropzone__title">{t(item.nameKey)}</span>
+                </span>
                 <span class="small {presetId === item.id ? '' : 'muted'}">{t(item.descKey)}</span>
+                <span class="small faint">{t(item.impactKey)}</span>
               </button>
             {/each}
           </div>
 
-          <div class="col" style="gap:12px;margin-top:16px">
-            <div class="row">
-              <span class="field__label">{t("protect.chain")}</span>
-              <span class="spacer"></span>
-              <span class="small faint">{describeChain(chain).join(" → ")}</span>
-            </div>
+          {#if presetFallback}
+            <div class="hint-box small" style="margin-top:10px">{t("protect.presetFallback")}</div>
+          {/if}
 
-            <label class="check">
-              <input
-                type="checkbox"
-                bind:checked={antiCloneOn}
-                onchange={markCustom}
-              />
-              <span class="stack" style="gap:1px">
-                <span>{t("protect.engineAnticlone")}</span>
-                <span class="small muted">{t("protect.engineAnticloneDesc")}</span>
-              </span>
-            </label>
-
-            <label class="check">
-              <input
-                type="checkbox"
-                bind:checked={watermarkOn}
-                onchange={markCustom}
-              />
-              <span class="stack" style="gap:1px">
-                <span>{t("protect.engineWatermark")}</span>
-                <span class="small muted">{t("protect.engineWatermarkDesc")}</span>
-              </span>
-            </label>
-
-            <label class="check">
-              <input
-                type="checkbox"
-                bind:checked={c2paOn}
-                onchange={markCustom}
-              />
-              <span class="stack" style="gap:1px">
-                <span>{t("protect.engineC2pa")}</span>
-                <span class="small muted">{t("protect.engineC2paDesc")}</span>
-              </span>
-            </label>
-
-            {#if blockedReasons.length > 0}
-              <div class="err-box">
-                <div class="err-box__title">{t("protect.engineUnavailable")}</div>
-                <ul class="small" style="margin:0;padding-left:18px">
-                  {#each blockedReasons as item}
-                    <li><span class="mono">{item.engine}</span>: {item.reason}</li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
-
-            <div class="grid grid-2" style="gap:12px;margin-top:4px">
-              <div class="field">
-                <label for="protect-anticlone-engine">{t("protect.antiCloneEngine")}</label>
-                <select
-                  id="protect-anticlone-engine"
-                  class="select"
-                  bind:value={antiCloneEngine}
-                  disabled={!antiCloneOn}
-                >
-                  {#each antiCloneEngines as item (item.id)}
-                    <option value={item.id} disabled={item.status === "unavailable"}>
-                      {item.name} · {item.status}
-                    </option>
-                  {:else}
-                    <option value="">{t("common.notAvailable")}</option>
-                  {/each}
-                </select>
-              </div>
-              <div class="field">
-                <label for="protect-watermark-engine">{t("protect.watermarkEngine")}</label>
-                <select
-                  id="protect-watermark-engine"
-                  class="select"
-                  bind:value={watermarkEngine}
-                  disabled={!watermarkOn}
-                >
-                  {#each watermarkEngines as item (item.id)}
-                    <option value={item.id} disabled={item.status === "unavailable"}>
-                      {item.name} · {item.status}
-                    </option>
-                  {:else}
-                    <option value="">{t("common.notAvailable")}</option>
-                  {/each}
-                </select>
+          {#if engine.presets.length > 0}
+            <div class="col" style="gap:6px;margin-top:12px">
+              <span class="field__label">{t("protect.enginePresets")}</span>
+              <div class="chip-list">
+                {#each engine.presets as presetItem (presetItem.id)}
+                  <button class="btn btn--ghost btn--sm" onclick={() => applyEnginePreset(presetItem)}>
+                    {presetItem.name}
+                  </button>
+                {/each}
               </div>
             </div>
+          {/if}
 
-            <div class="grid grid-2" style="gap:12px;margin-top:4px">
-              <div class="field">
-                <label for="protect-strength">{t("protect.strength")}</label>
-                <select
-                  id="protect-strength"
-                  class="select"
-                  bind:value={strength}
-                  onchange={markCustom}
-                >
-                  <option value="light">{t("protect.strengthLight")}</option>
-                  <option value="medium">{t("protect.strengthMedium")}</option>
-                  <option value="high">{t("protect.strengthHigh")}</option>
-                </select>
-              </div>
+          <div class="row" style="margin-top:16px">
+            <span class="field__label">{t("protect.chainEngines")}</span>
+            <span class="spacer"></span>
+            <span class="small faint mono">{describeChain(chain).join(" → ") || "—"}</span>
+          </div>
+          <p class="small muted" style="margin:4px 0 10px">{t("protect.chainOrderHint")}</p>
 
-              <div class="field">
-                <label for="protect-profile">{t("protect.profile")}</label>
-                <select id="protect-profile" class="select" bind:value={profileId}>
-                  <option value="">{t("protect.profileNone")}</option>
-                  {#each engine.profiles as profile (profile.id)}
-                    <option value={profile.id}>{profile.name}</option>
-                  {/each}
-                </select>
-                <span class="field__help">{t("protect.profileHint")}</span>
-              </div>
-            </div>
-
-            <label class="check">
-              <input type="checkbox" bind:checked={verifyAfter} />
-              <span class="stack" style="gap:1px">
-                <span>{t("protect.verifyAfter")}</span>
-                <span class="small muted">{t("protect.verifyAfterHint")}</span>
-              </span>
-            </label>
-
-            <button
-              class="btn btn--ghost btn--sm"
-              style="align-self:flex-start"
-              onclick={() => (advancedOpen = !advancedOpen)}
-              aria-expanded={advancedOpen}
-            >
-              <Icon name="settings" size={14} />
-              {t("protect.advancedOptions")}
-            </button>
-
-            {#if advancedOpen}
-              <div class="grid grid-2" style="gap:12px">
-                <div class="field">
-                  <label for="protect-payload">{t("protect.payloadHex")}</label>
-                  <input
-                    id="protect-payload"
-                    class="input mono"
-                    maxlength="4"
-                    bind:value={payloadHex}
-                    placeholder="0000"
-                  />
-                  <span class="field__help">{t("protect.payloadHint")}</span>
+          <div class="col" style="gap:6px">
+            {#each orderedSelections() as selection, index (selection.engine)}
+              {@const info = engine.engines.find((item) => item.id === selection.engine)}
+              <div class="list-row">
+                <input
+                  type="checkbox"
+                  checked={isSelected(selection.engine)}
+                  onchange={() => toggleEngine(selection.engine, selection.role)}
+                  aria-label={selection.engine}
+                />
+                <div class="list-row__main">
+                  <div class="row gap-sm">
+                    <span class="chip">{roleLabel(selection.role)}</span>
+                    <span class="mono small">{selection.engine}.{actionForRole(selection.role)}</span>
+                    {#if info}
+                      <Badge
+                        label={info.status}
+                        tone={info.status === "unavailable" ? "err" : info.status === "experimental" ? "warn" : "ok"}
+                      />
+                    {/if}
+                  </div>
+                  <div class="small faint">
+                    {info?.name ?? selection.engine} · {info?.version ?? "—"}
+                    {#if info?.reason}· {info.reason}{/if}
+                  </div>
                 </div>
-                <div class="field">
-                  <label for="protect-title">{t("protect.manifestTitle")}</label>
-                  <input id="protect-title" class="input" bind:value={manifestTitle} />
-                  <span class="field__help">{t("protect.manifestTitleHint")}</span>
+                <div class="row gap-sm">
+                  <button
+                    class="btn btn--ghost btn--sm"
+                    onclick={() => moveSelection(selection.engine, -1)}
+                    disabled={index === 0}
+                    title={t("protect.moveUp")}
+                    aria-label={t("protect.moveUp")}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    class="btn btn--ghost btn--sm"
+                    onclick={() => moveSelection(selection.engine, 1)}
+                    disabled={index === orderedSelections().length - 1}
+                    title={t("protect.moveDown")}
+                    aria-label={t("protect.moveDown")}
+                  >
+                    ↓
+                  </button>
                 </div>
               </div>
-            {/if}
+            {:else}
+              <div class="empty">{t("protect.warnEmptyChain")}</div>
+            {/each}
+          </div>
 
-            <div class="btn-row">
-              <button class="btn btn--primary" onclick={() => void start()} disabled={!canStart}>
-                {#if single.running}
-                  <span class="spinner"></span>{t("protect.starting")}
-                {:else}
-                  <Icon name="play" size={15} />
-                  {t("protect.startButton")}
+          {#if chainEngines.length > 0}
+            <div class="col" style="gap:4px;margin-top:12px">
+              <span class="small faint">{t("protect.engineListHint")}</span>
+              {#each chainEngines as item (item.id)}
+                {@const role = roleForKind(item.kind)}
+                {#if role}
+                  {@const usable = item.status !== "unavailable"}
+                  {@const selected = isSelected(item.id)}
+                  <label class="check {usable ? '' : 'check--disabled'}">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={!usable}
+                      onchange={() => toggleEngine(item.id, role)}
+                    />
+                    <span class="row gap-sm">
+                      <span class="small">{item.name}</span>
+                      <span class="mono small faint">{roleLabel(role)}</span>
+                      <Badge
+                        label={item.status}
+                        tone={item.status === "unavailable" ? "err" : item.status === "experimental" ? "warn" : "ok"}
+                      />
+                      {#if !usable && item.reason}
+                        <span class="small faint">{item.reason}</span>
+                      {/if}
+                    </span>
+                  </label>
                 {/if}
-              </button>
-              {#if single.running}
-                <button class="btn btn--danger" onclick={() => void cancel()} disabled={single.cancelling}>
-                  <Icon name="stop" size={14} />
-                  {t("protect.cancelButton")}
-                </button>
-              {/if}
-              {#if !engine.online}
-                <span class="small faint">{t("protect.engineOfflineShort")}</span>
-              {/if}
+              {/each}
             </div>
+          {/if}
+
+          {#if warnings.length > 0}
+            <div class="warn-box small" style="margin-top:12px">
+              <ul style="margin:0;padding-left:18px">
+                {#each warnings as warning}
+                  <li class={warning.level === "error" ? "field__error" : ""}>{t(warning.key)}</li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+
+          {#if blockedReasons.length > 0}
+            <div class="err-box" style="margin-top:12px">
+              <div class="err-box__title">{t("protect.engineUnavailable")}</div>
+              <ul class="small" style="margin:0;padding-left:18px">
+                {#each blockedReasons as item}
+                  <li><span class="mono">{item.engine}</span>: {item.reason}</li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+
+          <div class="grid grid-2" style="gap:12px;margin-top:14px">
+            <div class="field">
+              <label for="protect-strength">{t("protect.strength")}</label>
+              <select
+                id="protect-strength"
+                class="select"
+                bind:value={strength}
+              >
+                <option value="light">{t("protect.strengthLight")}</option>
+                <option value="medium">{t("protect.strengthMedium")}</option>
+                <option value="high">{t("protect.strengthHigh")}</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="protect-profile">{t("protect.profile")}</label>
+              <select id="protect-profile" class="select" bind:value={profileId}>
+                <option value="">{t("protect.profileNone")}</option>
+                {#each engine.profiles as profile (profile.id)}
+                  <option value={profile.id}>{profile.name}</option>
+                {/each}
+              </select>
+              <span class="field__help">{t("protect.profileHint")}</span>
+            </div>
+          </div>
+
+          <label class="check" style="margin-top:12px">
+            <input type="checkbox" bind:checked={verifyAfter} />
+            <span class="stack" style="gap:1px">
+              <span>{t("protect.verifyAfter")}</span>
+              <span class="small muted">{t("protect.verifyAfterHint")}</span>
+            </span>
+          </label>
+
+          <button
+            class="btn btn--ghost btn--sm"
+            style="align-self:flex-start;margin-top:8px"
+            onclick={() => (advancedOpen = !advancedOpen)}
+            aria-expanded={advancedOpen}
+          >
+            <Icon name="settings" size={14} />
+            {t("protect.advancedOptions")}
+          </button>
+
+          {#if advancedOpen}
+            <div class="grid grid-2" style="gap:12px;margin-top:10px">
+              <div class="field">
+                <label for="protect-payload">{t("protect.payloadHex")}</label>
+                <input
+                  id="protect-payload"
+                  class="input mono"
+                  maxlength="4"
+                  bind:value={payloadHex}
+                  placeholder="0000"
+                />
+                <span class="field__help">{t("protect.payloadHint")}</span>
+              </div>
+              <div class="field">
+                <label for="protect-title">{t("protect.manifestTitle")}</label>
+                <input id="protect-title" class="input" bind:value={manifestTitle} />
+                <span class="field__help">{t("protect.manifestTitleHint")}</span>
+              </div>
+            </div>
+          {/if}
+
+          <div class="btn-row" style="margin-top:14px">
+            <button class="btn btn--primary" onclick={() => void start()} disabled={!canStart}>
+              {#if single.running}
+                <span class="spinner"></span>{t("protect.starting")}
+              {:else}
+                <Icon name="play" size={15} />
+                {t("protect.startButton")}
+              {/if}
+            </button>
+            {#if single.running}
+              <button class="btn btn--danger" onclick={() => void cancel()} disabled={single.cancelling}>
+                <Icon name="stop" size={14} />
+                {t("protect.cancelButton")}
+              </button>
+            {/if}
+            {#if !engine.online}
+              <span class="small faint">{t("protect.engineOfflineShort")}</span>
+            {/if}
           </div>
         </div>
       </div>
@@ -567,6 +673,20 @@
               <div class="small" style="margin-top:4px">{t("protect.noResultHint")}</div>
             </div>
           {/if}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">
+          <h2>{t("player.title")}</h2>
+        </div>
+        <div class="card__body">
+          <AudioPlayer
+            tracks={listenTracks}
+            inputQuality={single.result?.quality?.input ?? null}
+            outputQuality={single.result?.quality?.output ?? null}
+            status={single.result?.status ?? null}
+          />
         </div>
       </div>
     </div>
@@ -634,9 +754,7 @@
             {:else}
               <span class="small faint">{engine.enginesLoading ? t("common.loading") : t("engines.noEngines")}</span>
             {/each}
-            <div class="small faint" style="margin-top:6px">
-              {t("protect.chainHint")}
-            </div>
+            <div class="small faint" style="margin-top:6px">{t("protect.chainHint")}</div>
           </div>
         </div>
       </div>
@@ -650,8 +768,6 @@
             <dl class="kv">
               <dt>{t("common.file")}</dt>
               <dd class="mono small break-all">{basename(inputPath)}</dd>
-              <dt>{t("verify.duration")}</dt>
-              <dd class="mono">{single.result ? "—" : t("common.notAvailable")}</dd>
               <dt>{t("protect.chain")}</dt>
               <dd class="small">{chain.length}</dd>
             </dl>

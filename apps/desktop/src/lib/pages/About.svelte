@@ -10,6 +10,7 @@
 
   const repo = "Nicotina4ever/NL-VO-SHIELD";
   const repoUrl = `https://github.com/${repo}`;
+  const profileUrl = "https://github.com/Nicotina4ever";
   const siteUrl = "https://www.nicolalanci.com";
   const mailUrl = "mailto:info@nicolalanci.com";
 
@@ -129,27 +130,34 @@
   <div class="card">
     <div class="card__head"><h2>{t("about.owner")}</h2></div>
     <div class="card__body">
-      <div class="row" style="gap:18px;align-items:flex-start;flex-wrap:wrap">
-        <div class="stack" style="gap:2px">
-          <span class="bold" style="font-size:15px">{t("about.ownerName")}</span>
-          <span class="small muted">{t("about.brandMeaning")}</span>
-        </div>
-        <span class="spacer"></span>
-        <div class="col" style="gap:6px">
-          <button class="btn btn--sm" onclick={() => void openUrl(siteUrl)}>
+      <div class="col" style="gap:4px">
+        <span class="bold" style="font-size:17px">{t("about.ownerName")}</span>
+        <span class="small" style="color:var(--nl-text-2)">{t("about.ownerRole")}</span>
+        <div class="row gap-sm" style="margin-top:4px">
+          <button class="btn btn--ghost btn--sm" onclick={() => void openUrl(siteUrl)}>
             <Icon name="external" size={13} />
             {t("about.site")}
           </button>
-          <button class="btn btn--sm btn--ghost" onclick={() => void openUrl(mailUrl)}>
+          <button class="btn btn--ghost btn--sm" onclick={() => void openUrl(mailUrl)}>
             {t("about.email")}
           </button>
         </div>
       </div>
-      <p class="small muted" style="margin-bottom:0;margin-top:12px">{t("about.copyright")}</p>
-      <p class="small faint" style="margin-bottom:0">
-        {t("about.repoNote")} ·
-        <button class="btn btn--ghost btn--sm" onclick={() => void openUrl(repoUrl)}>{repo}</button>
+      <p class="small mono" style="margin:14px 0 0">{t("about.copyright")}</p>
+      <p class="small" style="margin:8px 0 0">
+        {t("about.repoLabel")}
+        <button class="btn btn--ghost btn--sm" onclick={() => void openUrl(repoUrl)}>
+          {t("about.repoName")}
+        </button>
+        ·
+        <button class="btn btn--ghost btn--sm" onclick={() => void openUrl(profileUrl)}>
+          {t("about.profileName")}
+        </button>
       </p>
+      <div class="row gap-sm small faint" style="margin-top:14px">
+        <span class="chip">{t("about.appVersionLine", { v: engine.host?.appVersion ?? "1.0.0" })}</span>
+        <span class="chip">{t("about.engineVersionLine", { v: engine.health?.version ?? "—" })}</span>
+      </div>
     </div>
   </div>
 
@@ -164,6 +172,7 @@
         <li>{t("about.limitFingerprint")}</li>
         <li>{t("about.limitModels")}</li>
         <li>{t("about.limitOffline")}</li>
+        <li>{t("about.reaperNote")}</li>
       </ul>
     </div>
   </div>

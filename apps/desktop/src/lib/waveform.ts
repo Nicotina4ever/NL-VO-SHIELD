@@ -111,6 +111,9 @@ export interface WaveOptions {
   midline?: string;
   background?: string;
   heightPx?: number;
+  /** Posizione del cursore di riproduzione, 0..1. */
+  playhead?: number | null;
+  playheadColor?: string;
 }
 
 /** Disegna i picchi su un canvas, adattandosi al DPI. */
@@ -162,5 +165,17 @@ export function drawWaveform(
     const bottom = mid - min * half;
     const height = Math.max(1, bottom - top);
     ctx.fillRect(i * barWidth, top, Math.max(1, barWidth * 0.82), height);
+  }
+
+  if (options.playhead != null && Number.isFinite(options.playhead)) {
+    const x = Math.max(0, Math.min(1, options.playhead)) * cssWidth;
+    ctx.strokeStyle =
+      options.playheadColor ??
+      (styles.getPropertyValue("--nl-rose").trim() || "#ba266c");
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, 1);
+    ctx.lineTo(x, cssHeight - 1);
+    ctx.stroke();
   }
 }

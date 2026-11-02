@@ -43,9 +43,14 @@
     "resources": ["engine"],
     "category": "Utility",
     "publisher": "Nicola Lanci",
-    "copyright": "© 2026 Nicola Lanci",
+    "copyright": "© 2026 Nicola Lanci — NL VO Shield",
     "homepage": "https://www.nicolalanci.com",
     "shortDescription": "Protezione anti-clonazione, watermark, provenance C2PA e verifica file audio.",
-    "longDescription": "NL VO Shield elabora registrazioni vocali in locale: perturbazione anti-clonazione, watermark AudioSeal, manifest C2PA, fingerprint e verifica. Nessun audio viene inviato a servizi esterni."
+    "longDescription": "NL VO Shield elabora registrazioni vocali in locale: perturbazione anti-clonazione, watermark AudioSeal, manifest C2PA, fingerprint e verifica. Nessun audio viene inviato a servizi esterni.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }

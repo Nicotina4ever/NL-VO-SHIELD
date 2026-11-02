@@ -20,6 +20,13 @@
   let hint = $state<InstallHint | null>(null);
   let hintLoading = $state(false);
   let hintError = $state<string | null>(null);
+  let detailsEngine = $state<EngineInfo | null>(null);
+
+  function detailKey(kind: string, section: string): string | null {
+    const known = ["anti_clone", "watermark", "provenance", "fingerprint", "quality"];
+    if (!known.includes(kind)) return null;
+    return `engines.${section}.${kind}`;
+  }
 
   function statusLabel(status: string): string {
     if (status === "available") return t("engines.statusAvailable");
@@ -168,8 +175,11 @@
           </dl>
 
           <div class="btn-row" style="margin-top:auto">
-            <button class="btn btn--sm" onclick={() => void openHint(item)}>
+            <button class="btn btn--sm" onclick={() => (detailsEngine = item)}>
               <Icon name="info" size={14} />
+              {t("engines.details")}
+            </button>
+            <button class="btn btn--ghost btn--sm" onclick={() => void openHint(item)}>
               {t("engines.installHint")}
             </button>
             <button class="btn btn--ghost btn--sm" onclick={goToModels}>
@@ -187,6 +197,85 @@
     </button>
   </div>
 </div>
+
+{#if detailsEngine}
+  {@const detailModels = modelsForEngine(detailsEngine.id)}
+  <Modal title={`${t("engines.detailsTitle")} — ${detailsEngine.name}`} onclose={() => (detailsEngine = null)} wide>
+    {#snippet footer()}
+      <button class="btn btn--ghost" onclick={() => (detailsEngine = null)}>{t("common.close")}</button>
+      {#if detailsEngine?.status === "unavailable"}
+        <button class="btn btn--primary" onclick={goToModels}>{t("engines.manageModels")}</button>
+      {/if}
+    {/snippet}
+    <div class="col" style="gap:12px">
+      <dl class="kv">
+        <dt>{t("common.name")}</dt>
+        <dd class="mono">{detailsEngine.name}</dd>
+        <dt>{t("engines.kind")}</dt>
+        <dd>{kindLabel(detailsEngine.kind)}</dd>
+        <dt>{t("common.version")}</dt>
+        <dd class="mono">{detailsEngine.version}</dd>
+        <dt>{t("common.status")}</dt>
+        <dd>
+          <Badge label={statusLabel(detailsEngine.status)} tone={engineStatusTone(detailsEngine.status)} />
+          {#if detailsEngine.reason}
+            <div class="small faint" style="margin-top:4px">{detailsEngine.reason}</div>
+          {/if}
+        </dd>
+      </dl>
+
+      {#if detailKey(detailsEngine.kind, "purpose")}
+        <div class="field">
+          <span class="field__label">{t("engines.purpose")}</span>
+          <div class="small">{t(detailKey(detailsEngine.kind, "purpose") as string)}</div>
+        </div>
+        <div class="field">
+          <span class="field__label">{t("engines.audioEffect")}</span>
+          <div class="small">{t(detailKey(detailsEngine.kind, "audioEffect") as string)}</div>
+        </div>
+        <div class="field">
+          <span class="field__label">{t("engines.prerequisites")}</span>
+          <div class="small">{t(detailKey(detailsEngine.kind, "prerequisites") as string)}</div>
+          <div class="small faint mono">
+            {(detailsEngine.requires ?? []).join(", ") || "—"}
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label">{t("engines.limits")}</span>
+          <div class="small">{t(detailKey(detailsEngine.kind, "limits") as string)}</div>
+        </div>
+        <div class="field">
+          <span class="field__label">{t("engines.whenToUse")}</span>
+          <div class="small">{t(detailKey(detailsEngine.kind, "whenToUse") as string)}</div>
+        </div>
+      {:else if detailsEngine.quality_note}
+        <div class="field">
+          <span class="field__label">{t("engines.qualityNote")}</span>
+          <div class="small">{detailsEngine.quality_note}</div>
+        </div>
+      {/if}
+
+      {#if detailModels.length > 0}
+        <div class="field">
+          <span class="field__label">{t("engines.weightsPresent")}</span>
+          <div class="col" style="gap:3px">
+            {#each detailModels as model (model.id)}
+              <div class="row gap-sm small">
+                <span class="dot {model.present ? 'dot--ok' : 'dot--err'}"></span>
+                <span class="mono">{model.id}</span>
+                <span class="faint">{model.present ? t("settings.modelPresent") : t("settings.modelMissing")}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      {#if detailsEngine.status === "unavailable"}
+        <div class="err-box small">{t("engines.notAvailableHint")} {t("engines.downloadManual")}</div>
+      {/if}
+    </div>
+  </Modal>
+{/if}
 
 {#if hintEngine}
   <Modal

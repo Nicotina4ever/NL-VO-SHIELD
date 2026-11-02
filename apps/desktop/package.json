@@ -4,6 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "description": "NL VO Shield desktop shell (Tauri 2 + Svelte 5): UI for the Python engine core.",
+  "author": "Nicola Lanci",
+  "homepage": "https://www.nicolalanci.com",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nicotina4ever/NL-VO-SHIELD.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

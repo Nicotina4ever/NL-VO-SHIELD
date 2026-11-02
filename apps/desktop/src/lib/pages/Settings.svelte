@@ -408,7 +408,28 @@
     </div>
   </div>
 
-  <div class="card" id="models">
+  <div class="card">
+    <div class="card__head">
+      <h2>{t("settings.automationSection")}</h2>
+      <span class="spacer"></span>
+      <Badge label={t("settings.comingSoon")} tone="muted" />
+    </div>
+    <div class="card__body">
+      <label class="check check--disabled">
+        <input type="checkbox" disabled />
+        <span class="stack" style="gap:1px">
+          <span>{t("settings.monitorFolder")}</span>
+          <span class="small muted">{t("settings.monitorFolderHint")}</span>
+          <span class="small faint">{t("settings.comingSoonHint")}</span>
+        </span>
+      </label>
+      <div class="hint-box small" style="margin-top:12px">
+        <strong>{t("settings.reaper")}</strong> — {t("settings.reaperHint")}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card__head">
       <h2>{t("settings.modelsSection")}</h2>
       <span class="spacer"></span>

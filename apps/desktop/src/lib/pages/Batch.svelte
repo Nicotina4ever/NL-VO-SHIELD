@@ -4,7 +4,18 @@
   import { ui, toast } from "../ui.svelte";
   import { engine, engineUsableReason, loadSettings, loadProfiles } from "../engine.svelte";
   import { batch, startBatchJob, cancelBatchJob } from "../run.svelte";
-  import { BUILTIN_PRESETS, buildChain, findPreset, type Strength } from "../presets";
+  import {
+    BUILTIN_PRESETS,
+    buildChain,
+    chainWarnings,
+    findPreset,
+    resolvePresetSelections,
+    roleForKind,
+    actionForRole,
+    type Selection,
+    type Strength,
+    type StepRole,
+  } from "../presets";
   import { AUDIO_EXTENSIONS, pickAudioFile, pickDirectory } from "../dialogs";
   import { engineApi, isTauri } from "../ipc";
   import { basename, fileExtension, formatPct } from "../format";
@@ -14,32 +25,27 @@
 
   let queue = $state<string[]>([]);
   let outputDir = $state("");
-  let presetId = $state("public_distribution");
-  let strength = $state<Strength>("medium");
+  let presetId = $state("balanced_demo");
+  let selections = $state<Selection[]>([]);
+  let strength = $state<Strength>("light");
   let profileId = $state("");
-  let antiCloneEngine = $state("");
-  let watermarkEngine = $state("");
   let dragging = $state(false);
   let lastOpenRequest = 0;
+  let defaultsApplied = false;
 
-  const antiCloneEngines = $derived(engine.engines.filter((item) => item.kind === "anti_clone"));
-  const watermarkEngines = $derived(engine.engines.filter((item) => item.kind === "watermark"));
-
-  const preset = $derived(findPreset(presetId) ?? BUILTIN_PRESETS[2]);
   const selectedProfile = $derived(engine.profiles.find((item) => item.id === profileId) ?? null);
 
+  const chainEngines = $derived(engine.engines.filter((item) => roleForKind(item.kind) !== null));
+
   const chain = $derived(
-    buildChain({
-      antiClone: preset.antiClone,
-      watermark: preset.watermark,
-      c2pa: preset.c2pa,
+    buildChain(selections, {
       strength,
-      antiCloneEngine,
-      watermarkEngine,
       author: selectedProfile?.name ?? undefined,
       usageTerms: selectedProfile?.usage_terms ?? undefined,
     }),
   );
+
+  const warnings = $derived(chainWarnings(selections, strength));
 
   const blockedReasons = $derived(
     chain
@@ -48,13 +54,37 @@
   );
 
   const canStart = $derived(
-    !batch.running && queue.length > 0 && Boolean(outputDir) && blockedReasons.length === 0,
+    !batch.running && queue.length > 0 && Boolean(outputDir) && chain.length > 0 && blockedReasons.length === 0,
   );
 
-  const completedCount = $derived(
-    batch.items.filter((item) => item.status === "done").length,
-  );
+  const completedCount = $derived(batch.items.filter((item) => item.status === "done").length);
   const failedCount = $derived(batch.items.filter((item) => item.status === "failed").length);
+
+  function roleLabel(role: StepRole): string {
+    if (role === "anti_clone") return t("protect.roleAntiClone");
+    if (role === "watermark") return t("protect.roleWatermark");
+    return t("protect.roleProvenance");
+  }
+
+  function applyPreset(id: string): void {
+    presetId = id;
+    const found = findPreset(id);
+    if (!found) return;
+    strength = found.strength;
+    selections = resolvePresetSelections(found, engine.engines);
+  }
+
+  function toggleEngine(engineId: string, role: StepRole): void {
+    const exists = selections.some((selection) => selection.engine === engineId);
+    selections = exists
+      ? selections.filter((selection) => selection.engine !== engineId)
+      : [...selections, { engine: engineId, role }];
+    presetId = "custom";
+  }
+
+  function isSelected(engineId: string): boolean {
+    return selections.some((selection) => selection.engine === engineId);
+  }
 
   function addFiles(paths: string[]): void {
     const accepted: string[] = [];
@@ -150,24 +180,17 @@
   });
 
   $effect(() => {
+    if (defaultsApplied) return;
+    if (engine.engines.length === 0) return;
+    defaultsApplied = true;
+    applyPreset("balanced_demo");
+  });
+
+  $effect(() => {
     const request = ui.openFileRequest;
     if (request === lastOpenRequest) return;
     lastOpenRequest = request;
     if (ui.page === "batch") void pickFiles();
-  });
-
-  $effect(() => {
-    if (engine.engines.length === 0) return;
-    if (!antiCloneEngines.some((item) => item.id === antiCloneEngine && item.status !== "unavailable")) {
-      const pick =
-        antiCloneEngines.find((item) => item.status !== "unavailable") ?? antiCloneEngines[0];
-      if (pick && antiCloneEngine !== pick.id) antiCloneEngine = pick.id;
-    }
-    if (!watermarkEngines.some((item) => item.id === watermarkEngine && item.status !== "unavailable")) {
-      const pick =
-        watermarkEngines.find((item) => item.status !== "unavailable") ?? watermarkEngines[0];
-      if (pick && watermarkEngine !== pick.id) watermarkEngine = pick.id;
-    }
   });
 
   $effect(() => {
@@ -261,18 +284,66 @@
           <h2>{t("batch.presetForBatch")}</h2>
         </div>
         <div class="card__body">
-          <div class="grid grid-2" style="gap:12px">
-            <div class="field">
-              <label for="batch-preset">{t("protect.preset")}</label>
-              <select id="batch-preset" class="select" bind:value={presetId}>
-                {#each BUILTIN_PRESETS as item (item.id)}
-                  {#if !item.custom}
-                    <option value={item.id}>{t(item.nameKey)}</option>
-                  {/if}
+          <div class="grid grid-2" style="gap:10px">
+            {#each BUILTIN_PRESETS.filter((item) => !item.custom) as item (item.id)}
+              <button
+                class="dropzone dropzone--sm {presetId === item.id ? 'dropzone--active' : ''}"
+                style="cursor:pointer;align-items:flex-start;text-align:left"
+                onclick={() => applyPreset(item.id)}
+                aria-pressed={presetId === item.id}
+              >
+                <span class="row gap-sm" style="align-items:center">
+                  <span class="badge badge--brand">{item.level}/3</span>
+                  <span class="dropzone__title">{t(item.nameKey)}</span>
+                </span>
+                <span class="small {presetId === item.id ? '' : 'muted'}">{t(item.descKey)}</span>
+              </button>
+            {/each}
+          </div>
+
+          <div class="row" style="margin-top:14px">
+            <span class="field__label">{t("protect.chainEngines")}</span>
+            <span class="spacer"></span>
+            <span class="small faint mono">
+              {chain.map((step) => `${step.engine}.${step.action}`).join(" → ") || "—"}
+            </span>
+          </div>
+          <div class="col" style="gap:4px;margin-top:6px">
+            {#each chainEngines as item (item.id)}
+              {@const role = roleForKind(item.kind)}
+              {#if role}
+                {@const usable = item.status !== "unavailable"}
+                <label class="check {usable ? '' : 'check--disabled'}">
+                  <input
+                    type="checkbox"
+                    checked={isSelected(item.id)}
+                    disabled={!usable}
+                    onchange={() => toggleEngine(item.id, role)}
+                  />
+                  <span class="row gap-sm">
+                    <span class="small">{item.name}</span>
+                    <span class="mono small faint">{roleLabel(role)}.{actionForRole(role)}</span>
+                    <Badge
+                      label={item.status}
+                      tone={item.status === "unavailable" ? "err" : item.status === "experimental" ? "warn" : "ok"}
+                    />
+                  </span>
+                </label>
+              {/if}
+            {/each}
+          </div>
+
+          {#if warnings.length > 0}
+            <div class="warn-box small" style="margin-top:10px">
+              <ul style="margin:0;padding-left:18px">
+                {#each warnings as warning}
+                  <li>{t(warning.key)}</li>
                 {/each}
-              </select>
-              <span class="field__help">{t(preset.descKey)}</span>
+              </ul>
             </div>
+          {/if}
+
+          <div class="grid grid-2" style="gap:12px;margin-top:12px">
             <div class="field">
               <label for="batch-strength">{t("protect.strength")}</label>
               <select id="batch-strength" class="select" bind:value={strength}>
@@ -289,36 +360,6 @@
                   <option value={profile.id}>{profile.name}</option>
                 {/each}
               </select>
-            </div>
-            <div class="field">
-              <label for="batch-watermark-engine">{t("protect.watermarkEngine")}</label>
-              <select id="batch-watermark-engine" class="select" bind:value={watermarkEngine}>
-                {#each watermarkEngines as item (item.id)}
-                  <option value={item.id} disabled={item.status === "unavailable"}>
-                    {item.name} · {item.status}
-                  </option>
-                {:else}
-                  <option value="">{t("common.notAvailable")}</option>
-                {/each}
-              </select>
-            </div>
-            <div class="field">
-              <label for="batch-anticlone-engine">{t("protect.antiCloneEngine")}</label>
-              <select id="batch-anticlone-engine" class="select" bind:value={antiCloneEngine}>
-                {#each antiCloneEngines as item (item.id)}
-                  <option value={item.id} disabled={item.status === "unavailable"}>
-                    {item.name} · {item.status}
-                  </option>
-                {:else}
-                  <option value="">{t("common.notAvailable")}</option>
-                {/each}
-              </select>
-            </div>
-            <div class="field">
-              <span class="field__label">{t("protect.chain")}</span>
-              <span class="small mono muted">
-                {chain.map((step) => `${step.engine}.${step.action}`).join(" → ") || t("common.none")}
-              </span>
             </div>
           </div>
 
