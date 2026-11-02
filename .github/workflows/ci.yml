@@ -140,7 +140,7 @@ jobs:
         os: [ubuntu-22.04, windows-latest, macos-14]
         include:
           - os: ubuntu-22.04
-            bundles: deb,appimage
+            bundles: deb
           - os: windows-latest
             bundles: nsis,msi
           - os: macos-14
@@ -217,6 +217,7 @@ jobs:
           path: dist/**
           if-no-files-found: error
           retention-days: 14
+
 
 
 
