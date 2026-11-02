@@ -23,7 +23,7 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BUNDLES=""
-EXPECTED_VERSION="1.0.0"
+EXPECTED_VERSION=""
 SKIP_LEAK_GUARD=0
 SKIP_SIDECAR=0
 SKIP_INSTALL=0
@@ -93,6 +93,9 @@ PRODUCT="$(json_get "$CONF" productName)"; [ -n "$PRODUCT" ] || PRODUCT="NL VO S
 VERSION="$(json_get "$CONF" version)"
 [ -n "$VERSION" ] || VERSION="$(json_get "$DESKTOP/package.json" version)"
 [ -n "$VERSION" ] || fail "cannot determine the product version from tauri.conf.json/package.json" 2
+if [ -z "$EXPECTED_VERSION" ] && [[ "${GITHUB_REF_NAME:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  EXPECTED_VERSION="${GITHUB_REF_NAME#v}"
+fi
 if [ -n "$EXPECTED_VERSION" ] && [ "$VERSION" != "$EXPECTED_VERSION" ]; then
   fail "app version mismatch: tauri.conf.json reports '$VERSION' but the release version must be '$EXPECTED_VERSION' (update tauri.conf.json/package.json/Cargo.toml or pass --expected-version)" 2
 fi
@@ -359,6 +362,7 @@ log INFO "BUILD-INFO.json: $DIST/BUILD-INFO.json"
 log INFO "log: $LOG_FILE"
 [ "$SIGNED" -eq 0 ] && log WARN 'UNSIGNED build: OS trust warnings are expected; auto-update is disabled until a signing key is configured.'
 exit 0
+
 
 
 

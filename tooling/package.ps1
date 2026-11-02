@@ -51,7 +51,7 @@
 param(
   [string]$RepoRoot,
   [string]$Bundles = '',
-  [string]$ExpectedVersion = '1.0.0',
+  [string]$ExpectedVersion = '',
   [switch]$SkipLeakGuard,
   [switch]$SkipSidecar,
   [switch]$SkipInstall,
@@ -116,6 +116,9 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 }
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } elseif ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' }
 Write-Log INFO "product: $product | version: $version | windows-$arch"
+if ([string]::IsNullOrWhiteSpace($ExpectedVersion) -and $env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+)$') {
+  $ExpectedVersion = $Matches[1]
+}
 if (-not [string]::IsNullOrWhiteSpace($ExpectedVersion) -and $version -ne $ExpectedVersion) {
   Fail "app version mismatch: tauri.conf.json reports '$version' but the release version must be '$ExpectedVersion'. Update apps/desktop version fields (tauri.conf.json, package.json, Cargo.toml) or pass -ExpectedVersion." 2
 }
@@ -409,4 +412,5 @@ Write-Log INFO "BUILD-INFO.json: $(Join-Path $dist 'BUILD-INFO.json')"
 Write-Log INFO "log: $($script:LogFile)"
 if (-not $signed) { Write-Log WARN 'UNSIGNED build: macOS/Windows trust warnings are expected; auto-update is disabled until a signing key is configured.' }
 exit 0
+
 
