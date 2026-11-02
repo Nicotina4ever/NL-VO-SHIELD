@@ -86,9 +86,16 @@ engine/
   (PyInstaller esclude solo UI/matplotlib/IPython/tkinter in quel caso).
 - Pulizia: il builder rifiuta di cancellare `engine/` se manca il marker (serve `-Force`).
   Nessun altro file del repo viene rimosso.
-- Health check reali per ogni entry point: `--version` **e** `health` JSON-RPC su stdio
-  (timeout 20 s lato Windows, `timeout 45` lato POSIX). Se nessun entry point risponde,
-  la build fallisce con exit 3.
+- Health check reali per ogni entry point: `--version`, `health` JSON-RPC su stdio e
+  `doctor --json` con `NLVS_C2PATOOL` impostata (verifica `tool.c2patool=ok` e
+  `c2pa=available`); timeout 20 s lato Windows, `timeout 45` lato POSIX. Se nessun entry
+  point risponde, la build fallisce con exit 3.
+- **c2patool** (C2PA CLI, Apache-2.0) è incluso nel payload in `engine/bin/c2patool/` con
+  `LICENSE-APACHE.txt` e `THIRD-PARTY-NOTICES.txt`; versione e SHA-256 sono nel
+  `build-manifest.json` e quindi in `BUILD-INFO.json`. La CI lo provisiona per ogni OS con
+  download esplicito e checksum verificato (v0.9.12, asset upstream); su macOS/Linux i
+  bundle non lo includono se la CI non riesce a provisionarlo (C2PA resta `unavailable`,
+  dichiarato, mai simulato).
 - Dipendenze del runtime: se esiste `packages/engine/pyproject.toml` il builder installa il
   pacchetto engine + dipendenze base con `pip install --target` (senza toccare linterprete);
   altrimenti usa `requirements.txt` o il baseline `tooling/requirements-baseline.txt`.
@@ -155,9 +162,10 @@ comparire nel bundle: la scansione blocca.
 - **MSI**: per-macchina in `Program Files`, dove la scrittura può essere negata; in quel caso
   l'app rileva `install_writable = false`, espone `needs_data_dir = true` e chiede una cartella
   dati scrivibile. La modalità consigliata per l'uso portable è l'installer **NSIS**.
-- **Disinstallazione**: rimuove programma e runtime incluso; la cartella `<install>/data`
-  creata dall'app non viene cancellata automaticamente (contiene dati utente). Va rimossa a
-  mano se si vuole ripartire puliti.
+- **Disinstallazione** (verificata su NSIS 1.0.0): rimuove programma e runtime incluso; la
+  cartella `<install>/data` creata dall'app **resta** (cache, certs, logs, models, output,
+  profiles, receipts, webview2) perché contiene dati utente. Va rimossa a mano se si vuole
+  ripartire puliti.
 - **Verifica post-build**: il packaging scansiona gli artefatti per materiale privato e
   verifica che il payload non contenga modelli/pesi; il default dati è ispezionato staticamente
   in `paths.rs` perché deve restare relativo all'installazione.

@@ -198,6 +198,30 @@ SafeSpeech: pesi incompleti ⇒ `unavailable` con reason esplicita (BLOCKER docu
   La release CI firma i bundle solo con `TAURI_SIGNING_PRIVATE_KEY` nei secrets; altrimenti
   artefatti non firmati e auto-update dichiarato disabilitato.
 
+## 6.2 Aggiungere nuove tecnologie di protezione (estensibilità)
+
+Il registro motori è progettato per crescere senza toccare la UI (che legge `engines.list`) né il
+protocollo (che resta stabile). Per integrare una nuova tecnologia:
+
+1. **Adapter Python** in `packages/engine/nl_vo_shield/engines/`: sottoclasse di `BaseEngine` con
+   `id`, `kind` (`anti_clone|watermark|provenance|fingerprint|quality`), `capabilities`, `version`,
+   `availability()`, `info()` e i metodi dell'azione (`perturb`, `embed/detect`, `sign/verify`, ...).
+   Deve dichiarare `impact`, `limitations`, `recommended_levels`, `incompatible_with`.
+2. **Registrazione** in `engines/__init__.py` + eventuale `ModelSpec` in `models.py` (SHA-256 pinnato,
+   download SOLO esplicito nella data-dir, mai cache globali). Se il motore non è distribuibile,
+   `status=unavailable` con `reason` reale: nessuna simulazione.
+3. **Catena/preset**: aggiungere l'engine alle chain dei preset o lasciarlo selezionabile; il
+   validatore rifiuta duplicati, step di misura nella catena e più di una perturbazione anti-clone.
+4. **Verifica reale**: esecuzione su audio autorizzato, misure di qualità, controllo del risultato
+   (`protected` solo se ogni step required è eseguito e verificato), receipt aggiornata.
+5. **Test + documento**: test pytest (fail-closed incluso), aggiornamento del registro nel README.
+   La UI mostra automaticamente il nuovo motore con scheda info e toggle; nessun hardcoding.
+
+Candidati già censiti (radar missione §6, **non ancora integrati**): Perth, WavMark, CRAW,
+Latent-Mark, Enkidu, CloneShield, VoiceCloak, Silence-the-Mimic, audiowmark. Lo stato onesto di
+ognuno resta `available/experimental/unavailable` in base a codice e pesi realmente disponibili.
+Matrice completa con audit, licenze e decisioni: `docs/TECHNOLOGY_MATRIX.md`.
+
 ## 7. Test di accettazione (solo 4, vedi master §8)
 
 A fail-closed reale; B qualità/robustezza; C installabilità multi-OS; D lab ComfyUI.

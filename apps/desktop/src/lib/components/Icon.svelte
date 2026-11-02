@@ -33,6 +33,9 @@
     up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
     eye: '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.5l3.5 2"/>',
+    pause: '<path d="M9 5v14M15 5v14"/>',
+    volume: '<path d="M4 10v4h3l4 3V7l-4 3H4z"/><path d="M15 9.5a3.5 3.5 0 0 1 0 5"/><path d="M17.5 7a7 7 0 0 1 0 10"/>',
+    volumeOff: '<path d="M4 10v4h3l4 3V7l-4 3H4z"/><path d="M16 9.5l4 5M20 9.5l-4 5"/>',
   };
 </script>
 

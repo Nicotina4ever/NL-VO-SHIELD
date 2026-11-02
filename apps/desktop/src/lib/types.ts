@@ -406,6 +406,8 @@ export interface WaveformData {
   durationSec: number;
   frames: number;
   peaks: { min: number[]; max: number[] };
+  /** Inviluppo RMS per bucket, allineato a peaks. */
+  rms?: number[];
   source: string;
 }
 

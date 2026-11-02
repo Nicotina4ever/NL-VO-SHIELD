@@ -182,6 +182,48 @@ jobs:
           python -m pip install -e packages/engine
           python -m pip install pyinstaller
           echo "NLVS_ENGINE_PYTHON=$(python -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Provision c2patool (Windows, build-time, checksum verified)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "bin/c2patool/c2patool"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $url = "https://github.com/contentauth/c2patool/releases/download/v0.9.12/c2patool-v0.9.12-x86_64-pc-windows-msvc.zip"
+          $sha = "729be50407ca20ad72077a729c7e233b4ff8b37b57cd28bca24fd3d5ef5315d4"
+          $archive = Join-Path $env:TEMP "c2patool.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $sha) { throw "c2patool checksum mismatch: $actual" }
+          Expand-Archive -Path $archive -DestinationPath $dir -Force
+          $found = Get-ChildItem -Path $dir -Recurse -File -Filter "c2patool.exe" | Select-Object -First 1
+          $dest = Join-Path $dir "c2patool.exe"
+          if ($found.FullName -ne $dest) { Copy-Item $found.FullName $dest -Force }
+          & $dest --version
+      - name: Provision c2patool (macOS/Linux, build-time, checksum verified)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="bin/c2patool/c2patool"
+          mkdir -p "$dir"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            url="https://github.com/contentauth/c2patool/releases/download/v0.9.12/c2patool-v0.9.12-x86_64-unknown-linux-gnu.tar.gz"
+            sha="caa336747d5364e21e0eb7a307c108b6680b237ff8b8aa5ed94ab8e43d64214c"
+            curl -fsSL "$url" -o /tmp/c2patool.dl
+            echo "$sha  /tmp/c2patool.dl" | sha256sum -c -
+            tar -xzf /tmp/c2patool.dl -C "$dir"
+          else
+            url="https://github.com/contentauth/c2patool/releases/download/v0.9.12/c2patool-v0.9.12-universal-apple-darwin.zip"
+            sha="37284ab259513e9ddc22797a3956af7abad9cb390ed4ff3c6acaa45c350bd255"
+            curl -fsSL "$url" -o /tmp/c2patool.dl
+            echo "$sha  /tmp/c2patool.dl" | shasum -a 256 -c -
+            unzip -q /tmp/c2patool.dl -d "$dir"
+          fi
+          found="$(find "$dir" -type f -name c2patool | head -n 1)"
+          [ -n "$found" ] || { echo "::error::c2patool binary not found"; exit 1; }
+          if [ "$found" != "$dir/c2patool" ]; then cp -f "$found" "$dir/c2patool"; fi
+          chmod +x "$dir/c2patool"
+          "$dir/c2patool" --version
       - name: Build engine sidecar (Windows)
         if: runner.os == 'Windows'
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File tooling/build-engine-sidecar.ps1

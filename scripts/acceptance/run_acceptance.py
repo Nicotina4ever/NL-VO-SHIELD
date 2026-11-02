@@ -617,9 +617,18 @@ def test_c(python: Path, ev: Evidence) -> None:
     # 1) installer artifacts produced locally
     dist = ROOT / "dist"
     installers = []
+    current_version = "1.0.0"
+    try:
+        current_version = json.loads(
+            (ROOT / "apps" / "desktop" / "package.json").read_text(encoding="utf-8")
+        )["version"]
+    except Exception:
+        pass
     if dist.is_dir():
         for p in dist.rglob("*"):
-            if p.is_file() and p.suffix.lower() in (".exe", ".msi", ".dmg", ".appimage", ".deb", ".rpm"):
+            if (p.is_file()
+                    and p.suffix.lower() in (".exe", ".msi", ".dmg", ".appimage", ".deb", ".rpm")
+                    and current_version in p.name):
                 installers.append(p)
     for p in installers:
         ev.artifact(p, "installer artifact")
@@ -667,7 +676,20 @@ def test_c(python: Path, ev: Evidence) -> None:
     # tracked files must not contain absolute dev paths
     tracked = subprocess.run(["git", "ls-files"], cwd=str(ROOT), capture_output=True, text=True)
     hits = []
+    # Files that intentionally mention absolute paths / detection patterns: same
+    # allowlist documented by the repository leak guard.
+    abs_scan_skip = {
+        "tooling/leak-guard.mjs",
+        "scripts/consolidate-root.ps1",
+        "docs/PACKAGING.md",
+        "packages/engine/nl_vo_shield/paths.py",
+        "tooling/bootstrap.ps1",
+        "tooling/build-engine-sidecar.ps1",
+        "README.md",
+    }
     for rel in tracked.stdout.splitlines():
+        if rel in abs_scan_skip:
+            continue
         p = ROOT / rel
         if p.suffix.lower() in (".png", ".ico", ".icns", ".svg", ".woff2"):
             continue

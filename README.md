@@ -38,6 +38,9 @@ Python, Node o Rust: il motore Python è incluso nel pacchetto. **Versione corre
 **Motori e limiti (onesti).**
 - **AudioSeal** (watermark neurale) è *opzionale*: richiede il pacchetto AI opzionale e non è
   incluso nella build base. Senza i pesi il motore risulta non disponibile, non simulato.
+- **Watermark DSP** (spread-spectrum, senza ML): disponibile nella build base.
+- **C2PA / c2patool**: disponibile; c2patool 0.9.12 è incluso nel payload Windows con la sua
+  licenza Apache-2.0 (nelle build macOS/Linux la CI lo fornisce se il secret/asset è disponibile).
 - **Anti-clone spettrale** è implementato realmente ma ha stato **experimental**: non esiste
   una prova pubblica che garantisca resistenza a ElevenLabs o ad altri modelli proprietari.
 - **C2PA** registra una manifest e una firma verificabile, ma **non garantisce l'identità
@@ -118,7 +121,9 @@ engines are shown as such (with an install hint): no dead buttons and no "protec
 unless the engine actually ran.
 
 **Engines and honest limits.** AudioSeal watermarking is **optional** (requires the optional AI
-package; not in the base build, no simulated weights). The **spectral anti-clone** engine is
+package; not in the base build, no simulated weights). **DSP spread-spectrum watermark** is
+available in the base build; **C2PA** is available and ships c2patool 0.9.12 in the Windows
+payload (Apache-2.0; macOS/Linux CI provisions it when available). The **spectral anti-clone** engine is
 real but **experimental**: no public evidence guarantees resistance to ElevenLabs or other
 proprietary models. **C2PA** proves integrity/signature, **not legal identity**. A successful
 watermark does not prove anti-clone protection worked. Research engines without available

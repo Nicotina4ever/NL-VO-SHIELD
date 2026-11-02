@@ -215,6 +215,15 @@ const it: Dict = {
   "player.decodeError":
     "Impossibile decodificare questo file audio nel WebView (formato non supportato o file danneggiato).",
   "player.noTracks": "Nessuna traccia disponibile per l'ascolto.",
+  "player.emptyWaveform": "Nessun file caricato",
+  "player.emptyWaveformHint": "Scegli o trascina un file audio per vedere la forma d'onda.",
+  "player.decoding": "Decodifica audio…",
+  "player.syncOn": "A/B sincronizzati",
+  "player.syncShort": "Sync",
+  "player.loopShort": "Loop",
+  "player.syncHint": "Mantiene la stessa posizione passando dall'originale all'elaborato",
+  "player.mute": "Silenzia",
+  "player.unmute": "Riattiva",
   "player.seek": "cerca nella traccia",
   "player.note":
     "L'ascolto avviene in locale: i byte del file vengono letti dall'host e decodificati nel WebView. Nessun upload.",
@@ -927,6 +936,15 @@ const en: Dict = {
   "player.decodeError":
     "Cannot decode this audio file in the WebView (unsupported format or damaged file).",
   "player.noTracks": "No track available for listening.",
+  "player.emptyWaveform": "No file loaded",
+  "player.emptyWaveformHint": "Choose or drop an audio file to see the waveform.",
+  "player.decoding": "Decoding audio…",
+  "player.syncOn": "A/B synced",
+  "player.syncShort": "Sync",
+  "player.loopShort": "Loop",
+  "player.syncHint": "Keeps the same position when switching from original to processed",
+  "player.mute": "Mute",
+  "player.unmute": "Unmute",
   "player.seek": "seek in track",
   "player.note":
     "Listening is local: the file bytes are read by the host and decoded in the WebView. No upload.",
