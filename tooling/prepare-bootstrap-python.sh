@@ -68,10 +68,14 @@ cp -R "$WORK/python" "$DESTINATION/python"
 cp "$GETPIP" "$DESTINATION/get-pip.py"
 # Remove test/ensurepip payloads: get-pip.py is provided explicitly and the
 # venv is created with --without-pip. Avoids foreign launcher binaries and size.
-for rel in Lib/test Lib/ensurepip Lib/site-packages Lib/idlelib Lib/tkinter share include libs; do
+for rel in \
+  Lib/test Lib/ensurepip Lib/site-packages Lib/idlelib Lib/tkinter share include libs \
+  lib/python3.11/test lib/python3.11/ensurepip lib/python3.11/site-packages \
+  lib/python3.11/idlelib lib/python3.11/tkinter lib/tk9.0; do
   rm -rf "$DESTINATION/python/$rel"
 done
 find "$DESTINATION/python" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 SIZE="$(du -sk "$DESTINATION" | awk '{print $1}')"
 echo "[bootstrap] embedded Python ready: $DESTINATION (${SIZE} KB)"
+
 

@@ -49,3 +49,4 @@ foreach ($relative in @('Lib\test','Lib\ensurepip','Lib\site-packages','Lib\idle
 $size = (Get-ChildItem $Destination -Recurse -File | Measure-Object Length -Sum).Sum
 Write-Host ("[bootstrap] embedded Python ready: {0} ({1:N1} MB)" -f $Destination, ($size / 1MB))
 
+
