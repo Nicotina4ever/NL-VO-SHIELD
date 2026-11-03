@@ -1,4 +1,4 @@
-# NL VO Shield
+# NL VO Shield - Nicola Lanci Voice Over Shield
 
 Protezione anti-clonazione, watermark e provenienza per la voce — desktop, offline-first.
 
