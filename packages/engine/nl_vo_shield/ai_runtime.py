@@ -280,7 +280,7 @@ class AIRuntime:
         if self.venv.exists():
             shutil.rmtree(self.venv, ignore_errors=True)
         self._run(
-            [str(embedded), "-m", "venv", str(self.venv)],
+            [str(embedded), "-m", "venv", "--without-pip", str(self.venv)],
             stage=(8, 18),
             label="creazione ambiente isolato",
             emit=emit,
@@ -745,5 +745,6 @@ def main() -> int:
 if __name__ == "__main__":
     sys.exit(main())
 '''
+
 
 

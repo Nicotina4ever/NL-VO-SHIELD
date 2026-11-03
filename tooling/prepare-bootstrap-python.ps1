@@ -38,5 +38,14 @@ if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
 New-Item -ItemType Directory -Force $Destination | Out-Null
 Copy-Item $pythonDir (Join-Path $Destination 'python') -Recurse -Force
 Copy-Item $getPip (Join-Path $Destination 'get-pip.py') -Force
+# Remove training/test/ensurepip payloads: get-pip.py is provided explicitly and
+# the venv is created with --without-pip. This keeps the installer small and
+# avoids platform launcher .exe files inside the Linux/macOS bootstrap.
+$pyRoot = Join-Path $Destination 'python'
+foreach ($relative in @('Lib\test','Lib\ensurepip','Lib\site-packages','Lib\idlelib','Lib\tkinter','share','include','libs')) {
+  $target = Join-Path $pyRoot $relative
+  if (Test-Path $target) { Remove-Item $target -Recurse -Force -ErrorAction SilentlyContinue }
+}
 $size = (Get-ChildItem $Destination -Recurse -File | Measure-Object Length -Sum).Sum
 Write-Host ("[bootstrap] embedded Python ready: {0} ({1:N1} MB)" -f $Destination, ($size / 1MB))
+
