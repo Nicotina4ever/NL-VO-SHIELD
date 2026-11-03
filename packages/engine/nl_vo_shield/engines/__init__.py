@@ -15,6 +15,7 @@ def build_registry(context: "AppContext") -> EngineRegistry:
     from .audioseal_engine import AudioSealEngine
     from .c2pa_engine import C2PAEngine
     from .fingerprint import FingerprintEngine
+    from .mimic_blocker import MimicBlockerEngine
     from .quality_engine import QualityEngine
     from .safespeech import SafeSpeechEngine
     from .spectral_cloak import SpectralCloakEngine
@@ -28,6 +29,7 @@ def build_registry(context: "AppContext") -> EngineRegistry:
         C2PAEngine(context),
         FingerprintEngine(context),
         QualityEngine(context),
+        MimicBlockerEngine(context),
         SafeSpeechEngine(context),
     ):
         registry.register(engine)
