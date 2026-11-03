@@ -29,7 +29,7 @@ jobs:
           pattern: release-*
           path: release-assets
           merge-multiple: true
-          run-id: ${{ inputs.run_id }}
+          run-id: 41723936230
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Remove duplicate metadata files
         shell: bash
