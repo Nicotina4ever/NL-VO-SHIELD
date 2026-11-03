@@ -9,9 +9,9 @@
     modelsForEngine,
     engineWeightsState,
   } from "../engine.svelte";
-  import { engineApi } from "../ipc";
-  import { engineStatusTone } from "../format";
-  import type { EngineInfo, InstallHint } from "../types";
+  import { engineApi, aiApi, type AiRuntimeStatus } from "../ipc";
+  import { engineStatusTone, formatBytes } from "../format";
+  import type { EngineInfo, InstallHint, ModelInfo } from "../types";
   import Icon from "../components/Icon.svelte";
   import Badge from "../components/Badge.svelte";
   import Modal from "../components/Modal.svelte";
@@ -22,9 +22,43 @@
   let hintError = $state<string | null>(null);
   let detailsEngine = $state<EngineInfo | null>(null);
 
+  let aiRuntime = $state<AiRuntimeStatus | null>(null);
+  let aiError = $state<string | null>(null);
+
+  /** Motori censiti dall'advisor: per questi esistono testi IT/EN dedicati. */
+  const ADVISED_ENGINES = [
+    "audioseal",
+    "c2pa",
+    "fingerprint",
+    "quality",
+    "safespeech",
+    "spectral_cloak",
+    "watermark_dsp",
+  ];
+  const KNOWN_KINDS = ["anti_clone", "watermark", "provenance", "fingerprint", "quality"];
+  /** Soglia indicativa: sotto questa VRAM la variante GPU resta possibile ma sconsigliata. */
+  const VRAM_COMFORT_BYTES = 4 * 1024 * 1024 * 1024;
+
+  interface Recommendation {
+    id: string;
+    name: string;
+    kind: string;
+    status: string;
+    availability: string;
+    mode: string;
+    requirements: string;
+    install: string;
+    quality: string;
+    efficacy: string;
+    fallback: string;
+    advice: string;
+    models: ModelInfo[];
+    weights: "present" | "missing" | "manual" | "unknown";
+    advised: boolean;
+  }
+
   function detailKey(kind: string, section: string): string | null {
-    const known = ["anti_clone", "watermark", "provenance", "fingerprint", "quality"];
-    if (!known.includes(kind)) return null;
+    if (!KNOWN_KINDS.includes(kind)) return null;
     return `engines.${section}.${kind}`;
   }
 
@@ -33,7 +67,7 @@
     if (status === "unavailable") return t("engines.statusUnavailable");
     if (status === "experimental") return t("engines.statusExperimental");
     if (status === "verified") return t("engines.statusVerified");
-    return status;
+    return t("engines.statusError");
   }
 
   function kindLabel(kind: string): string {
@@ -56,6 +90,166 @@
     return t("common.unknown");
   }
 
+  /* ----------------------------- hardware ------------------------------- */
+
+  const hardware = $derived(engine.host?.hardware ?? null);
+
+  function aiVariantLabel(variant: string | null | undefined): string {
+    if (variant === "gpu" || variant === "cuda") return t("settings.aiVariantGpu");
+    if (variant === "cpu") return t("settings.aiVariantCpu");
+    return variant ? variant : t("engines.hwUnknown");
+  }
+
+  /** `nvidia-smi` del motore restituisce "Nome, 8188 MiB": usato solo se il Rust non ha dati. */
+  function gpuFromAiRuntime(): { name: string | null; vramBytes: number | null } {
+    const raw = aiRuntime?.gpu?.name ?? null;
+    if (!raw) return { name: null, vramBytes: null };
+    const parts = raw.split(",");
+    const name = parts[0]?.trim() || null;
+    const match = raw.match(/(\d+(?:\.\d+)?)\s*(MiB|GiB|MB|GB)/i);
+    if (!match) return { name, vramBytes: null };
+    const value = Number(match[1]);
+    if (!Number.isFinite(value)) return { name, vramBytes: null };
+    const unit = match[2].toLowerCase();
+    const factor = unit.startsWith("g") ? 1024 ** 3 : 1024 ** 2;
+    return { name, vramBytes: Math.round(value * factor) };
+  }
+
+  const gpuName = $derived(hardware?.gpuName ?? gpuFromAiRuntime().name);
+  const gpuVram = $derived(hardware?.gpuVramBytes ?? gpuFromAiRuntime().vramBytes);
+
+  /**
+   * Solo una GPU NVIDIA/CUDA può eseguire la variante GPU del Runtime AI:
+   * una GPU Intel/AMD non abilita CUDA, quindi non va promessa come tale.
+   */
+  const cudaGpuName = $derived.by(() => {
+    if (aiRuntime?.gpu?.available) return aiRuntime.gpu.name?.split(",")[0]?.trim() ?? gpuName;
+    const hw = hardware;
+    if (!hw) return null;
+    if (hw.gpuSource === "nvidia-smi") return hw.gpuName ?? null;
+    if ((hw.gpuVendor ?? "").toUpperCase() === "NVIDIA") return hw.gpuName ?? null;
+    return (hw.gpuName ?? "").toLowerCase().includes("nvidia") ? hw.gpuName : null;
+  });
+  const cudaGpuVram = $derived(cudaGpuName ? gpuVram : null);
+
+  const cpuText = $derived(hardware?.cpuModel ?? t("engines.hwUnknown"));
+  const cpuCoresText = $derived(
+    hardware?.cpuLogicalCores
+      ? t("engines.hwCores", { n: hardware.cpuLogicalCores })
+      : t("engines.hwUnknown"),
+  );
+  const ramText = $derived(
+    hardware?.ramTotalBytes ? formatBytes(hardware.ramTotalBytes) : t("engines.hwUnknown"),
+  );
+  const gpuText = $derived(gpuName ?? t("engines.hwNoGpu"));
+  const vramText = $derived(
+    gpuVram ? formatBytes(gpuVram) : gpuName ? t("engines.hwNoVram") : t("engines.hwCpuOnly"),
+  );
+  const osText = $derived(engine.host ? `${engine.host.os} · ${engine.host.arch}` : t("engines.hwUnknown"));
+  const aiRuntimeText = $derived.by(() => {
+    if (aiError) return t("engines.hwAiUnavailable");
+    if (!aiRuntime) return t("common.loading");
+    if (!aiRuntime.installed) return t("engines.hwAiNotInstalled");
+    return t("engines.hwAiInstalled", { variant: aiVariantLabel(aiRuntime.variant ?? aiRuntime.device) });
+  });
+
+  /* -------------------------- recommendations --------------------------- */
+
+  function recText(engineId: string, field: string): string | null {
+    if (!ADVISED_ENGINES.includes(engineId)) return null;
+    const key = `engines.rec.${engineId}.${field}`;
+    const value = t(key);
+    return value === key ? null : value;
+  }
+
+  function kindRecText(section: "modeByKind" | "efficacyByKind", kind: string): string | null {
+    if (!KNOWN_KINDS.includes(kind)) return null;
+    const key = `engines.rec.${section}.${kind}`;
+    const value = t(key);
+    return value === key ? null : value;
+  }
+
+  function availabilityText(item: EngineInfo): string {
+    if (item.status === "verified") return t("engines.rec.statusVerifiedNow");
+    if (item.status === "available") return t("engines.rec.statusAvailableNow");
+    if (item.status === "experimental") return t("engines.rec.statusExperimentalNow");
+    if (item.status === "unavailable") return t("engines.rec.statusUnavailableNow");
+    return statusLabel(item.status);
+  }
+
+  function installText(item: EngineInfo): string {
+    const models = modelsForEngine(item.id);
+    const present = models.filter((model) => model.present).length;
+    const state = engineWeightsState(item.id);
+    if (state === "manual") return t("engines.rec.installManual");
+    const total = models.length;
+    if (state === "present") return t("engines.rec.installPresent", { n: present, total });
+    return t("engines.rec.installMissing", { n: present, total });
+  }
+
+  /**
+   * Fallback dichiarato: un motore non viene mai escluso per VRAM.
+   * AudioSeal è l'unico con variante GPU realmente selezionabile.
+   */
+  function fallbackText(item: EngineInfo): string {
+    if (item.id === "audioseal") {
+      if (!cudaGpuName) return t("engines.rec.fallbackNoGpu");
+      const vram = cudaGpuVram ? formatBytes(cudaGpuVram) : t("engines.hwNoVram");
+      if (cudaGpuVram && cudaGpuVram < VRAM_COMFORT_BYTES) {
+        return t("engines.rec.fallbackLowVram", { vram });
+      }
+      return t("engines.rec.fallbackGpu", { name: cudaGpuName, vram });
+    }
+    if (item.status === "unavailable") return t("engines.rec.fallbackNone");
+    return t("engines.rec.fallbackCpu");
+  }
+
+  function recommendationFor(item: EngineInfo): Recommendation {
+    const advised = ADVISED_ENGINES.includes(item.id);
+    const quality = recText(item.id, "quality") ?? item.quality_note ?? t("common.unknown");
+    const efficacy =
+      recText(item.id, "efficacy") ??
+      kindRecText("efficacyByKind", item.kind) ??
+      t("engines.rec.notMeasured");
+    const mode =
+      recText(item.id, "mode") ?? kindRecText("modeByKind", item.kind) ?? t("common.unknown");
+    const requirements =
+      recText(item.id, "requires") ??
+      (item.requires.length > 0 ? item.requires.join(", ") : t("common.unknown"));
+    const advice = recText(item.id, "advice") ?? t("engines.rec.unknownEngine");
+    return {
+      id: item.id,
+      name: item.name,
+      kind: item.kind,
+      status: item.status,
+      availability: availabilityText(item),
+      mode,
+      requirements,
+      install: installText(item),
+      quality,
+      efficacy,
+      fallback: fallbackText(item),
+      advice,
+      models: modelsForEngine(item.id),
+      weights: engineWeightsState(item.id),
+      advised,
+    };
+  }
+
+  const recommendations = $derived.by(() => engine.engines.map(recommendationFor));
+
+  /* ------------------------------ actions ------------------------------- */
+
+  async function loadAi(): Promise<void> {
+    aiError = null;
+    try {
+      const response = await aiApi.status();
+      aiRuntime = response.runtime;
+    } catch (err) {
+      aiError = hostErrorMessage(err as { code?: string; message?: string });
+    }
+  }
+
   async function openHint(item: EngineInfo): Promise<void> {
     hintEngine = item;
     hint = null;
@@ -71,8 +265,8 @@
   }
 
   async function refreshAll(): Promise<void> {
-    await refreshEngines();
-    await loadModels();
+    await Promise.allSettled([refreshEngines(), loadModels()]);
+    await loadAi();
   }
 
   onMount(() => {
@@ -102,9 +296,115 @@
   {#if !engine.online}
     <div class="warn-box">
       <div class="warn-box__title">{t("dashboard.setupWarning")}</div>
-      <div>{engine.error?.message ?? t("dashboard.setupWarningHint")}</div>
+      <div>{hostErrorMessage(engine.error) || t("dashboard.setupWarningHint")}</div>
     </div>
   {/if}
+
+  <div class="card">
+    <div class="card__head">
+      <h2>{t("engines.hwTitle")}</h2>
+      <span class="spacer"></span>
+      <Badge label={t("engines.hwBadge")} tone="muted" />
+    </div>
+    <div class="card__body">
+      <p class="small muted" style="margin:0 0 10px">{t("engines.hwSubtitle")}</p>
+      <div class="hw-grid">
+        <div class="hw-item">
+          <span class="hw-item__label">{t("engines.hwCpu")}</span>
+          <span class="hw-item__value">{cpuText}</span>
+          <span class="small faint">{cpuCoresText}</span>
+        </div>
+        <div class="hw-item">
+          <span class="hw-item__label">{t("engines.hwRam")}</span>
+          <span class="hw-item__value">{ramText}</span>
+        </div>
+        <div class="hw-item">
+          <span class="hw-item__label">{t("engines.hwGpu")}</span>
+          <span class="hw-item__value">{gpuText}</span>
+        </div>
+        <div class="hw-item">
+          <span class="hw-item__label">{t("engines.hwVram")}</span>
+          <span class="hw-item__value">{vramText}</span>
+        </div>
+        <div class="hw-item">
+          <span class="hw-item__label">{t("engines.hwAiRuntime")}</span>
+          <span class="hw-item__value">{aiRuntimeText}</span>
+        </div>
+        <div class="hw-item">
+          <span class="hw-item__label">{t("engines.hwOs")}</span>
+          <span class="hw-item__value">{osText}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head">
+      <h2>{t("engines.rec.title")}</h2>
+    </div>
+    <div class="card__body">
+      <p class="small muted" style="margin:0 0 10px">{t("engines.rec.subtitle")}</p>
+      {#if recommendations.length === 0}
+        <div class="empty">{engine.enginesLoading ? t("common.loading") : t("engines.noEngines")}</div>
+      {:else}
+        <div class="rec-grid">
+          {#each recommendations as rec (rec.id)}
+            <article class="rec-card {rec.status === 'unavailable' ? 'rec-card--off' : ''}">
+              <div class="rec-card__head">
+                <div class="stack" style="gap:2px">
+                  <span class="engine-card__title">{rec.name}</span>
+                  <span class="engine-card__sub">{kindLabel(rec.kind)} · {rec.id}</span>
+                </div>
+                <Badge label={statusLabel(rec.status)} tone={engineStatusTone(rec.status)} />
+              </div>
+
+              <dl class="kv">
+                <dt>{t("common.status")}</dt>
+                <dd>{rec.availability}</dd>
+                <dt>{t("engines.rec.mode")}</dt>
+                <dd>{rec.mode}</dd>
+                <dt>{t("engines.rec.requirements")}</dt>
+                <dd>{rec.requirements}</dd>
+                <dt>{t("engines.rec.install")}</dt>
+                <dd>{rec.install}</dd>
+                <dt>{t("engines.rec.quality")}</dt>
+                <dd>{rec.quality}</dd>
+                <dt>{t("engines.rec.efficacy")}</dt>
+                <dd>{rec.efficacy}</dd>
+              </dl>
+
+              <div class="hint-box small">
+                <strong>{t("engines.rec.fallback")}:</strong> {rec.fallback}
+              </div>
+              <div class="small">
+                <strong>{t("engines.rec.advice")}:</strong> {rec.advice}
+              </div>
+
+              <div class="rec-card__foot">
+                <button class="btn btn--sm" onclick={() => (detailsEngine = engine.engines.find((item) => item.id === rec.id) ?? null)}>
+                  <Icon name="info" size={14} />
+                  {t("engines.details")}
+                </button>
+                <button
+                  class="btn btn--ghost btn--sm"
+                  onclick={() => {
+                    const found = engine.engines.find((item) => item.id === rec.id);
+                    if (found) void openHint(found);
+                  }}
+                >
+                  {t("engines.installHint")}
+                </button>
+                <button class="btn btn--ghost btn--sm" onclick={goToModels}>
+                  {t("engines.manageModels")}
+                </button>
+              </div>
+            </article>
+          {/each}
+        </div>
+        <div class="hint-box small" style="margin-top:10px">{t("engines.rec.noEffectiveness")}</div>
+      {/if}
+    </div>
+  </div>
 
   {#if engine.engines.length === 0}
     <div class="card">
@@ -134,7 +434,12 @@
           </div>
 
           {#if item.reason}
-            <div class="small {item.status === 'unavailable' ? 'err-box' : 'warn-box'}">{item.reason}</div>
+            <details>
+              <summary class="small faint" style="cursor:pointer">{t("engines.reasonFromEngine")}</summary>
+              <div class="small {item.status === 'unavailable' ? 'err-box' : 'warn-box'}" style="margin-top:4px">
+                {item.reason}
+              </div>
+            </details>
           {/if}
 
           <dl class="kv small">
@@ -168,7 +473,10 @@
               <dt>{t("engines.enginePath")}</dt>
               <dd class="mono small break-all">{item.path}</dd>
             {/if}
-            {#if item.quality_note}
+            {#if ADVISED_ENGINES.includes(item.id)}
+              <dt>{t("engines.rec.quality")}</dt>
+              <dd class="small">{recText(item.id, "quality")}</dd>
+            {:else if item.quality_note}
               <dt>{t("engines.qualityNote")}</dt>
               <dd class="small">{item.quality_note}</dd>
             {/if}
@@ -182,7 +490,10 @@
             <button class="btn btn--ghost btn--sm" onclick={() => void openHint(item)}>
               {t("engines.installHint")}
             </button>
-            <button class="btn btn--ghost btn--sm" onclick={goToModels}>
+            <button
+              class="btn btn--sm {item.status === 'unavailable' ? 'btn--primary' : 'btn--ghost'}"
+              onclick={goToModels}
+            >
               {t("engines.manageModels")}
             </button>
           </div>
@@ -200,6 +511,15 @@
 
 {#if detailsEngine}
   {@const detailModels = modelsForEngine(detailsEngine.id)}
+  {@const detailQuality = recText(detailsEngine.id, "quality")}
+  {@const detailEfficacy =
+    recText(detailsEngine.id, "efficacy") ??
+    kindRecText("efficacyByKind", detailsEngine.kind) ??
+    t("engines.rec.notMeasured")}
+  {@const detailMode =
+    recText(detailsEngine.id, "mode") ??
+    kindRecText("modeByKind", detailsEngine.kind) ??
+    t("common.unknown")}
   <Modal title={`${t("engines.detailsTitle")} — ${detailsEngine.name}`} onclose={() => (detailsEngine = null)} wide>
     {#snippet footer()}
       <button class="btn btn--ghost" onclick={() => (detailsEngine = null)}>{t("common.close")}</button>
@@ -219,9 +539,15 @@
         <dd>
           <Badge label={statusLabel(detailsEngine.status)} tone={engineStatusTone(detailsEngine.status)} />
           {#if detailsEngine.reason}
-            <div class="small faint" style="margin-top:4px">{detailsEngine.reason}</div>
+            <div class="small faint" style="margin-top:4px">
+              {t("engines.reasonFromEngine")}: {detailsEngine.reason}
+            </div>
           {/if}
         </dd>
+        <dt>{t("engines.rec.mode")}</dt>
+        <dd>{detailMode}</dd>
+        <dt>{t("engines.rec.efficacy")}</dt>
+        <dd>{detailEfficacy}</dd>
       </dl>
 
       {#if detailKey(detailsEngine.kind, "purpose")}
@@ -248,10 +574,10 @@
           <span class="field__label">{t("engines.whenToUse")}</span>
           <div class="small">{t(detailKey(detailsEngine.kind, "whenToUse") as string)}</div>
         </div>
-      {:else if detailsEngine.quality_note}
+      {:else if detailQuality}
         <div class="field">
-          <span class="field__label">{t("engines.qualityNote")}</span>
-          <div class="small">{detailsEngine.quality_note}</div>
+          <span class="field__label">{t("engines.rec.quality")}</span>
+          <div class="small">{detailQuality}</div>
         </div>
       {/if}
 

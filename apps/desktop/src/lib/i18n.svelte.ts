@@ -89,12 +89,131 @@ const it: Dict = {
   "nav.protect": "Proteggi",
   "nav.batch": "Batch",
   "nav.verify": "Verifica",
+  "nav.lab": "Laboratorio",
   "nav.groupSystem": "Sistema",
   "nav.engines": "Motori",
   "nav.profiles": "Profili e Diritti",
   "nav.settings": "Impostazioni",
   "nav.diagnostics": "Diagnostica",
   "nav.about": "Informazioni",
+
+  "lab.title": "Laboratorio di prova",
+  "lab.subtitle":
+    "Clonazione vocale sperimentale con Qwen3-TTS. Confronta il riferimento originale e quello protetto con le stesse impostazioni. Strumento di laboratorio: nessuna dichiarazione di efficacia.",
+  "lab.banner.title": "Backend laboratorio non ancora nel motore",
+  "lab.banner.body":
+    "La pagina è pronta per il contratto lab.* dell'engine, ma il motore Python non espone ancora questi metodi. Puoi preparare file, modelli e impostazioni; le azioni reali mostreranno il motivo restituito dal motore.",
+  "lab.banner.contract": "Contratto pronto: lab.status · install · transcribe · run",
+  "lab.banner.retry": "Riprova",
+  "lab.refs.title": "Riferimenti WAV",
+  "lab.refs.add": "Aggiungi WAV…",
+  "lab.refs.hint":
+    "Seleziona uno o più WAV. I file *_protected.wav vengono accoppiati automaticamente con l'originale.",
+  "lab.refs.empty": "Nessun WAV selezionato.",
+  "lab.refs.remove": "Rimuovi",
+  "lab.refs.clear": "Svuota",
+  "lab.refs.pairOk": "Accoppiato",
+  "lab.refs.pairMissing":
+    "Manca il file _protected: aggiungilo per eseguire questo riferimento.",
+  "lab.refs.dir": "Cartella risultati",
+  "lab.refs.pickDir": "Scegli cartella…",
+  "lab.refs.dirEmpty": "Nessuna cartella scelta",
+  "lab.refs.dirHint": "I file generati vengono scritti in questa cartella.",
+  "lab.run.title": "Esecuzione",
+  "lab.run.text": "Testo da sintetizzare",
+  "lab.run.textPlaceholder": "Scrivi la frase da far pronunciare al clone…",
+  "lab.run.refText": "Trascrizione del riferimento",
+  "lab.run.refTextPlaceholder": "Trascrizione del WAV di riferimento, modificabile…",
+  "lab.run.transcribe": "Trascrivi automaticamente",
+  "lab.run.transcribing": "Trascrizione in corso…",
+  "lab.run.whisper": "Modello Whisper",
+  "lab.run.seed": "Seed",
+  "lab.run.seedHint": "Vuoto = casuale",
+  "lab.run.language": "Lingua",
+  "lab.lang.it": "Italiano",
+  "lab.lang.en": "Inglese",
+  "lab.lang.es": "Spagnolo",
+  "lab.lang.fr": "Francese",
+  "lab.lang.de": "Tedesco",
+  "lab.run.start": "Avvia test",
+  "lab.run.running": "Test in corso",
+  "lab.run.cancel": "Annulla",
+  "lab.run.queue": "In coda: {n}",
+  "lab.run.needFiles": "Seleziona almeno una coppia WAV originale + protetto.",
+  "lab.run.needDir": "Scegli la cartella risultati.",
+  "lab.run.needModel": "Installa il modello Qwen3-TTS selezionato.",
+  "lab.run.needText": "Scrivi il testo da sintetizzare.",
+  "lab.run.needRef": "Inserisci o genera la trascrizione del riferimento.",
+  "lab.run.needDevice": "Seleziona un dispositivo supportato.",
+  "lab.run.notReady": "Il motore non espone ancora lab.run: impossibile avviare il test.",
+  "lab.log.title": "Progresso e log",
+  "lab.log.empty": "Nessun log: avvia un test.",
+  "lab.results.title": "Risultati",
+  "lab.results.empty": "Nessun risultato: avvia un test.",
+  "lab.results.player": "Confronto A/B",
+  "lab.results.referenceOriginal": "Riferimento originale",
+  "lab.results.referenceProtected": "Riferimento protetto",
+  "lab.results.cloneOriginal": "Clone da riferimento originale",
+  "lab.results.cloneProtected": "Clone da riferimento protetto",
+  "lab.results.similarityDelta": "Delta similarity (protetto − originale)",
+  "lab.results.metrics": "Metriche qualità",
+  "lab.results.similarity": "Speaker similarity",
+  "lab.results.similarityMissing": "Non fornita dal motore",
+  "lab.results.noOutputs": "Il motore non ha restituito output riconoscibili.",
+  "lab.results.raw": "Risposta grezza",
+  "lab.results.openFolder": "Apri cartella",
+  "lab.results.note":
+    "Nessuna dichiarazione di efficacia: il Laboratorio mostra solo ciò che il motore ha prodotto e misurato.",
+  "lab.model.title": "Modello Qwen3-TTS",
+  "lab.model.size": "Dimensione",
+  "lab.model.installed": "Installato",
+  "lab.model.installable": "Installabile",
+  "lab.model.verify": "Verifica",
+  "lab.model.install": "Installa",
+  "lab.model.installing": "Installazione…",
+  "lab.model.uninstall": "Disinstalla",
+  "lab.model.localPath": "Percorso locale (modello già scaricato)",
+  "lab.model.localPathPlaceholder": "Percorso della cartella o del file del modello",
+  "lab.model.sourceLocal": "Installa da percorso locale",
+  "lab.model.reason": "Motivo",
+  "lab.model.estimated": "Dimensione stimata dal catalogo: il motore non l'ha ancora letta dal disco.",
+  "lab.model.notDownloaded": "Non scaricato",
+  "lab.whisper.title": "Whisper (trascrizione)",
+  "lab.whisper.install": "Installa",
+  "lab.whisper.uninstall": "Disinstalla",
+  "lab.whisper.installed": "Installato",
+  "lab.whisper.installable": "Installabile",
+  "lab.whisper.localPath": "Percorso locale Whisper",
+  "lab.whisper.hint":
+    "Serve per «Trascrivi automaticamente»; la trascrizione resta modificabile a mano.",
+  "lab.device.title": "Dispositivo",
+  "lab.device.unsupported": "Non supportato su questo PC: {reason}",
+  "lab.device.selected": "Selezionato",
+  "lab.space.title": "Spazio",
+  "lab.space.runtime": "Runtime AI",
+  "lab.space.models": "Modelli laboratorio",
+  "lab.space.free": "Spazio libero",
+  "lab.space.dataDir": "Cartella dati",
+  "lab.space.uninstallHint":
+    "Qwen e Whisper possono essere eliminati singolarmente; i modelli AudioSeal non vengono toccati.",
+  "lab.space.unknown": "Non ancora letto",
+  "lab.common.reload": "Aggiorna",
+  "lab.common.optional": "opzionale",
+  "lab.common.close": "Chiudi",
+
+  "console.open": "Console",
+  "console.title": "Console motore",
+  "console.subtitle": "Log del sidecar Python in tempo reale, senza aprire finestre cmd.",
+  "console.empty": "Nessun log disponibile: avvia il motore o un lavoro.",
+  "console.autoScroll": "Auto-scroll",
+  "console.copy": "Copia",
+  "console.copied": "Log copiati negli appunti.",
+  "console.clear": "Pulisci vista",
+  "console.openFile": "Apri file log",
+  "console.openFileHint": "Scrive un'istantanea dei log in <dati>/logs/engine-console.log e la apre.",
+  "console.openFailed": "Impossibile aprire il file di log.",
+  "console.close": "Chiudi console",
+  "console.lineCount": "{n} righe",
 
   "status.protected": "Protetto",
   "status.partial": "Parziale",
@@ -126,7 +245,7 @@ const it: Dict = {
   "dashboard.noJobs": "Nessun lavoro eseguito in questa sessione.",
   "dashboard.enginesSummary": "Motori",
   "dashboard.enginesReady": "disponibili",
-  "dashboard.enginesUnavailable": "non disponibili",
+  "dashboard.enginesUnavailable": "da installare",
   "dashboard.setupWarning": "Il motore non è ancora collegato",
   "dashboard.setupWarningHint":
     "Imposta NLVS_ENGINE_PYTHON con l'interprete del progetto oppure installa il runtime incluso nel pacchetto. Nessun fallback al PATH di sistema.",
@@ -389,9 +508,10 @@ const it: Dict = {
   "engines.subtitle":
     "Registro reale dei motori del core Python. Nessun motore viene dichiarato attivo se non è in grado di eseguire.",
   "engines.statusAvailable": "Disponibile",
-  "engines.statusUnavailable": "Non disponibile",
+  "engines.statusUnavailable": "Richiede installazione",
   "engines.statusExperimental": "Sperimentale",
   "engines.statusVerified": "Verificato",
+  "engines.statusError": "Errore",
   "engines.capabilities": "Capacità",
   "engines.supportedOs": "Sistemi",
   "engines.requires": "Requisiti",
@@ -469,6 +589,131 @@ const it: Dict = {
   "engines.limits.quality":
     "Misure oggettive: non sostituiscono un ascolto umano né certificano la naturalezza della voce.",
   "engines.whenToUse.quality": "Prima e dopo la protezione, per documentare il degrado reale.",
+
+  "engines.hwTitle": "Armeria e hardware rilevati",
+  "engines.hwSubtitle":
+    "Letti in locale dal sistema operativo (CPU, RAM, GPU e VRAM). Nessun dato lascia il computer.",
+  "engines.hwBadge": "rilevato in locale",
+  "engines.hwCpu": "CPU",
+  "engines.hwCores": "{n} core logici",
+  "engines.hwRam": "RAM totale",
+  "engines.hwGpu": "GPU",
+  "engines.hwVram": "VRAM dedicata",
+  "engines.hwAiRuntime": "Runtime AI (AudioSeal)",
+  "engines.hwOs": "Sistema",
+  "engines.hwUnknown": "non rilevato",
+  "engines.hwNoGpu": "Nessuna GPU rilevata: i motori DSP restano su CPU.",
+  "engines.hwNoVram": "VRAM non dichiarata dal driver",
+  "engines.hwCpuOnly": "Solo CPU",
+  "engines.hwAiInstalled": "Installato ({variant})",
+  "engines.hwAiNotInstalled": "Non installato",
+  "engines.hwAiUnavailable": "Stato non disponibile",
+
+  "engines.rec.title": "Protezioni consigliate",
+  "engines.rec.subtitle":
+    "Consigli calcolati su hardware rilevato, disponibilità reale dei motori e stato di installazione. Nessun punteggio di efficacia viene inventato: dove non esiste una misura viene dichiarato.",
+  "engines.rec.noEffectiveness":
+    "Nessun valore di efficacia anti-clonazione è dichiarato da questa schermata: dove non esiste una misura viene scritto «sperimentale, non misurata».",
+  "engines.rec.mode": "Modalità supportata",
+  "engines.rec.requirements": "Requisiti reali",
+  "engines.rec.install": "Stato installazione",
+  "engines.rec.quality": "Qualità attesa",
+  "engines.rec.efficacy": "Efficacia anti-clonazione",
+  "engines.rec.fallback": "Fallback",
+  "engines.rec.advice": "Consiglio",
+  "engines.rec.reasonLabel": "Dettaglio tecnico segnalato dal motore",
+  "engines.rec.statusAvailableNow": "Disponibile ora",
+  "engines.rec.statusVerifiedNow": "Verificato in questa sessione",
+  "engines.rec.statusExperimentalNow": "Disponibile ma sperimentale",
+  "engines.rec.statusUnavailableNow": "Richiede installazione in questa build",
+  "engines.rec.installPresent": "Pesi presenti ({n}/{total})",
+  "engines.rec.installMissing": "Pesi mancanti ({n}/{total})",
+  "engines.rec.installManual": "Nessun peso in catalogo: nessun download automatico previsto",
+  "engines.rec.unknownEngine":
+    "Motore non censito dall'advisor: restano visibili i dati grezzi del registro.",
+  "engines.rec.notMeasured": "non misurata",
+  "engines.rec.fallbackNoGpu":
+    "Nessuna GPU NVIDIA/CUDA rilevata: il motore resta usabile con la variante CPU del Runtime AI (CPU + RAM). Nessuna esclusione per VRAM.",
+  "engines.rec.fallbackLowVram":
+    "VRAM dedicata {vram}: sotto i 4 GB la variante GPU può essere poco pratica, ma il motore non viene escluso. Usa la variante CPU del Runtime AI con RAM libera sufficiente.",
+  "engines.rec.fallbackGpu":
+    "GPU NVIDIA rilevata: {name}, {vram} di VRAM. La variante GPU del Runtime AI è selezionabile; la variante CPU resta sempre disponibile.",
+  "engines.rec.fallbackCpu": "Nessuna GPU richiesta: funziona su CPU con RAM libera sufficiente.",
+  "engines.rec.fallbackNone": "Nessun fallback disponibile: i prerequisiti reali non sono soddisfatti.",
+  "engines.rec.modeByKind.anti_clone": "CPU (DSP locale)",
+  "engines.rec.modeByKind.watermark": "CPU (DSP locale)",
+  "engines.rec.modeByKind.provenance": "CPU (nessuna accelerazione GPU)",
+  "engines.rec.modeByKind.fingerprint": "CPU (analisi locale)",
+  "engines.rec.modeByKind.quality": "CPU (analisi locale)",
+  "engines.rec.efficacyByKind.anti_clone": "Sperimentale, non misurata",
+  "engines.rec.efficacyByKind.watermark":
+    "Non applicabile: il watermark traccia il file, non impedisce la clonazione. Robustezza non misurata.",
+  "engines.rec.efficacyByKind.provenance": "Non applicabile: nessuna modifica dell'audio.",
+  "engines.rec.efficacyByKind.fingerprint": "Non applicabile: sola analisi.",
+  "engines.rec.efficacyByKind.quality": "Non applicabile: sola analisi.",
+  "engines.rec.audioseal.mode":
+    "CPU oppure GPU CUDA, in base alla variante installata del Runtime AI; il fallback CPU è sempre previsto.",
+  "engines.rec.audioseal.requires":
+    "Runtime AI installato, torch/torchaudio e i checkpoint ufficiali generator + detector. GPU: driver NVIDIA (CUDA) e VRAM; CPU: RAM libera.",
+  "engines.rec.audioseal.quality":
+    "Alta per un watermark neurale, ma la robustezza non è misurata da questa app e dipende dai pesi ufficiali.",
+  "engines.rec.audioseal.efficacy":
+    "Sperimentale e non misurata: il watermark identifica il file, non impedisce la clonazione.",
+  "engines.rec.audioseal.advice":
+    "Consigliato se vuoi un watermark neurale e i pesi sono disponibili; altrimenti usa il watermark DSP, che non richiede download.",
+  "engines.rec.watermark_dsp.mode": "Solo CPU (DSP: numpy/scipy), nessuna GPU richiesta.",
+  "engines.rec.watermark_dsp.requires":
+    "numpy e scipy già inclusi nel pacchetto base; nessun peso da scaricare.",
+  "engines.rec.watermark_dsp.quality":
+    "Media: il watermark spread-spectrum è pensato per restare a basso livello; la robustezza non è misurata.",
+  "engines.rec.watermark_dsp.efficacy":
+    "Non applicabile: traccia il file, non impedisce la clonazione. Robustezza non misurata.",
+  "engines.rec.watermark_dsp.advice":
+    "Consigliato su ogni file pubblicato: tracciabilità locale senza dipendenze né download.",
+  "engines.rec.spectral_cloak.mode": "Solo CPU (DSP: numpy/scipy), nessuna GPU.",
+  "engines.rec.spectral_cloak.requires": "numpy e scipy già inclusi; nessun peso esterno.",
+  "engines.rec.spectral_cloak.quality":
+    "Variabile con l'intensità: a intensità alta il timbro può risultare meno naturale. Qualità non misurata.",
+  "engines.rec.spectral_cloak.efficacy":
+    "Sperimentale e non misurata: la build non include test contro clonatori reali.",
+  "engines.rec.spectral_cloak.advice":
+    "Consigliato solo come strato sperimentale, con intensità bilanciata; non garantisce l'anti-clonazione.",
+  "engines.rec.c2pa.mode": "Solo CPU: usa il binario esterno c2patool, nessuna GPU.",
+  "engines.rec.c2pa.requires":
+    "c2patool 0.9.x presente (nel bundle o nella cartella dati) e identità di firma locale generata in data dir.",
+  "engines.rec.c2pa.quality":
+    "Nessun effetto sull'audio: aggiunge un manifest firmato con certificato locale self-signed.",
+  "engines.rec.c2pa.efficacy":
+    "Non applicabile: prova la provenienza, non riduce la clonabilità né attribuisce un'identità legale.",
+  "engines.rec.c2pa.advice":
+    "Consigliato se devi mostrare chi ha elaborato il file e con quali termini d'uso.",
+  "engines.rec.fingerprint.mode": "Solo CPU (numpy).",
+  "engines.rec.fingerprint.requires": "numpy già incluso nel pacchetto base.",
+  "engines.rec.fingerprint.quality":
+    "Nessun effetto sull'audio: impronta spettrale locale, non riconoscimento dello speaker.",
+  "engines.rec.fingerprint.efficacy":
+    "Non applicabile: sola analisi, per collegare file derivati e ricevute locali.",
+  "engines.rec.fingerprint.advice":
+    "Consigliato per verificare se un file deriva da un lavoro protetto su questa installazione.",
+  "engines.rec.quality.mode": "Solo CPU (numpy/scipy).",
+  "engines.rec.quality.requires": "numpy e scipy già inclusi nel pacchetto base.",
+  "engines.rec.quality.quality":
+    "Misure oggettive (peak, true peak, LUFS, clipping, SNR); non sostituiscono l'ascolto umano.",
+  "engines.rec.quality.efficacy": "Non applicabile: sola analisi.",
+  "engines.rec.quality.advice":
+    "Consigliato prima e dopo la protezione, per documentare il degrado reale.",
+  "engines.rec.safespeech.mode": "Solo CPU (torch, codice di ricerca esterno); nessuna modalità ibrida.",
+  "engines.rec.safespeech.requires":
+    "Codice e checkpoint ufficiali forniti dall'utente; nessun download automatico.",
+  "engines.rec.safespeech.quality":
+    "Non valutabile in questa installazione: i pesi sono incompleti e il motore resta non disponibile.",
+  "engines.rec.safespeech.efficacy": "Sperimentale e non misurata; qui il motore non è disponibile.",
+  "engines.rec.safespeech.advice":
+    "Non consigliato in questa build: non diventa disponibile finché non fornisci i pesi completi.",
+  "engines.notInRegistry": "Motore non presente nel registro.",
+  "engines.unavailablePlain": "Non disponibile in questa installazione.",
+  "engines.unavailableWithReason": "Non disponibile: {reason}",
+  "engines.reasonFromEngine": "Dettaglio segnalato dal motore",
 
   "profiles.title": "Profili e Diritti",
   "profiles.subtitle":
@@ -553,6 +798,25 @@ const it: Dict = {
   "settings.aiRemoved": "Runtime AI rimosso",
   "settings.aiVerified": "AudioSeal verificato",
   "settings.aiVerifyFailed": "Verifica AudioSeal fallita",
+  "settings.aiStateError": "Errore",
+  "settings.aiStateUnknown": "Sconosciuto",
+  "settings.aiVariantCpu": "CPU",
+  "settings.aiVariantGpu": "GPU (CUDA)",
+  "settings.aiVariantCpuDesc":
+    "Funziona su qualsiasi PC: più lento, usa CPU e RAM, nessun requisito GPU.",
+  "settings.aiVariantGpuDesc":
+    "Richiede una GPU NVIDIA con driver CUDA: usa la VRAM dedicata ed è più veloce.",
+  "settings.aiVariantUnavailable": "Non selezionabile: prerequisiti non rilevati su questo PC.",
+  "settings.aiExpectedSize": "Download stimato",
+  "settings.aiDevice": "Dispositivo",
+  "settings.aiCurrentVariant": "Variante installata",
+  "settings.aiHardwareTitle": "Hardware rilevato",
+  "settings.aiHardwareHint":
+    "Il runtime si installa per una variante: CPU (qualsiasi PC) oppure GPU (NVIDIA/CUDA). VRAM insufficiente non esclude il motore: resta sempre la variante CPU.",
+  "settings.aiHardwareNoGpu":
+    "Nessuna GPU NVIDIA/CUDA rilevata: la variante GPU non è selezionabile, usa la variante CPU.",
+  "settings.aiReinstallHint":
+    "Per cambiare variante serve una nuova installazione (Aggiorna oppure Disinstalla e reinstalla).",
   "settings.modelsSection": "Modelli e cache",
   "settings.modelsHint":
     "Nessun download automatico all'avvio. I pesi si scaricano solo quando premi «Scarica», con verifica SHA-256 quando dichiarata.",
@@ -563,6 +827,10 @@ const it: Dict = {
   "settings.modelsList": "Pesi e modelli",
   "settings.modelPresent": "Presente",
   "settings.modelMissing": "Assente",
+  "settings.modelLabelAudiosealGenerator": "AudioSeal — generatore watermark (16 bit)",
+  "settings.modelLabelAudiosealDetector": "AudioSeal — rilevatore watermark (16 bit)",
+  "settings.modelLabelSafespeech": "SafeSpeech — checkpoint di ricerca (fornito dall'utente)",
+  "settings.modelEngineDetail": "Dettaglio fornito dal motore",
   "settings.download": "Scarica",
   "settings.downloading": "Download…",
   "settings.cancelDownload": "Annulla download",
@@ -835,12 +1103,130 @@ const en: Dict = {
   "nav.protect": "Protect",
   "nav.batch": "Batch",
   "nav.verify": "Verify",
+  "nav.lab": "Laboratory",
   "nav.groupSystem": "System",
   "nav.engines": "Engines",
   "nav.profiles": "Profiles & Rights",
   "nav.settings": "Settings",
   "nav.diagnostics": "Diagnostics",
   "nav.about": "About",
+
+  "lab.title": "Test laboratory",
+  "lab.subtitle":
+    "Experimental voice cloning with Qwen3-TTS. Compare the original and protected reference with identical settings. A laboratory tool: no effectiveness claim.",
+  "lab.banner.title": "Laboratory backend not yet in the engine",
+  "lab.banner.body":
+    "This page implements the engine lab.* contract, but the Python engine does not expose these methods yet. You can still prepare files, models and settings; real actions show the reason returned by the engine.",
+  "lab.banner.contract": "Contract ready: lab.status · install · transcribe · run",
+  "lab.banner.retry": "Retry",
+  "lab.refs.title": "WAV references",
+  "lab.refs.add": "Add WAV…",
+  "lab.refs.hint":
+    "Pick one or more WAV files. *_protected.wav files are paired automatically with their original.",
+  "lab.refs.empty": "No WAV selected.",
+  "lab.refs.remove": "Remove",
+  "lab.refs.clear": "Clear",
+  "lab.refs.pairOk": "Paired",
+  "lab.refs.pairMissing": "Missing the _protected file: add it to run this reference.",
+  "lab.refs.dir": "Results folder",
+  "lab.refs.pickDir": "Choose folder…",
+  "lab.refs.dirEmpty": "No folder selected",
+  "lab.refs.dirHint": "Generated files are written here.",
+  "lab.run.title": "Run",
+  "lab.run.text": "Text to synthesize",
+  "lab.run.textPlaceholder": "Type the sentence the clone should say…",
+  "lab.run.refText": "Reference transcription",
+  "lab.run.refTextPlaceholder": "Transcription of the reference WAV, editable…",
+  "lab.run.transcribe": "Transcribe automatically",
+  "lab.run.transcribing": "Transcribing…",
+  "lab.run.whisper": "Whisper model",
+  "lab.run.seed": "Seed",
+  "lab.run.seedHint": "Empty = random",
+  "lab.run.language": "Language",
+  "lab.lang.it": "Italian",
+  "lab.lang.en": "English",
+  "lab.lang.es": "Spanish",
+  "lab.lang.fr": "French",
+  "lab.lang.de": "German",
+  "lab.run.start": "Start test",
+  "lab.run.running": "Test running",
+  "lab.run.cancel": "Cancel",
+  "lab.run.queue": "Queued: {n}",
+  "lab.run.needFiles": "Select at least one original + protected WAV pair.",
+  "lab.run.needDir": "Choose the results folder.",
+  "lab.run.needModel": "Install the selected Qwen3-TTS model.",
+  "lab.run.needText": "Type the text to synthesize.",
+  "lab.run.needRef": "Provide or generate the reference transcription.",
+  "lab.run.needDevice": "Select a supported device.",
+  "lab.run.notReady": "The engine does not expose lab.run yet, so the test cannot start.",
+  "lab.log.title": "Progress and log",
+  "lab.log.empty": "No log yet: start a test.",
+  "lab.results.title": "Results",
+  "lab.results.empty": "No results yet: start a test.",
+  "lab.results.player": "A/B comparison",
+  "lab.results.referenceOriginal": "Original reference",
+  "lab.results.referenceProtected": "Protected reference",
+  "lab.results.cloneOriginal": "Clone from original reference",
+  "lab.results.cloneProtected": "Clone from protected reference",
+  "lab.results.similarityDelta": "Similarity delta (protected − original)",
+  "lab.results.metrics": "Quality metrics",
+  "lab.results.similarity": "Speaker similarity",
+  "lab.results.similarityMissing": "Not provided by the engine",
+  "lab.results.noOutputs": "The engine returned no recognizable output.",
+  "lab.results.raw": "Raw response",
+  "lab.results.openFolder": "Open folder",
+  "lab.results.note":
+    "No effectiveness claim: the laboratory only shows what the engine produced and measured.",
+  "lab.model.title": "Qwen3-TTS model",
+  "lab.model.size": "Size",
+  "lab.model.installed": "Installed",
+  "lab.model.installable": "Installable",
+  "lab.model.verify": "Verify",
+  "lab.model.install": "Install",
+  "lab.model.installing": "Installing…",
+  "lab.model.uninstall": "Uninstall",
+  "lab.model.localPath": "Local path (already-downloaded model)",
+  "lab.model.localPathPlaceholder": "Model folder or file path",
+  "lab.model.sourceLocal": "Install from local path",
+  "lab.model.reason": "Reason",
+  "lab.model.estimated": "Size estimated from the catalog: the engine has not read it from disk yet.",
+  "lab.model.notDownloaded": "Not downloaded",
+  "lab.whisper.title": "Whisper (transcription)",
+  "lab.whisper.install": "Install",
+  "lab.whisper.uninstall": "Uninstall",
+  "lab.whisper.installed": "Installed",
+  "lab.whisper.installable": "Installable",
+  "lab.whisper.localPath": "Whisper local path",
+  "lab.whisper.hint":
+    "Used by “Transcribe automatically”; the transcription stays editable by hand.",
+  "lab.device.title": "Device",
+  "lab.device.unsupported": "Not supported on this PC: {reason}",
+  "lab.device.selected": "Selected",
+  "lab.space.title": "Storage",
+  "lab.space.runtime": "AI runtime",
+  "lab.space.models": "Laboratory models",
+  "lab.space.free": "Free space",
+  "lab.space.dataDir": "Data folder",
+  "lab.space.uninstallHint":
+    "Qwen and Whisper can be removed individually; AudioSeal models are never touched.",
+  "lab.space.unknown": "Not read yet",
+  "lab.common.reload": "Refresh",
+  "lab.common.optional": "optional",
+  "lab.common.close": "Close",
+
+  "console.open": "Console",
+  "console.title": "Engine console",
+  "console.subtitle": "Live Python sidecar log, without opening any cmd window.",
+  "console.empty": "No log available: start the engine or a job.",
+  "console.autoScroll": "Auto-scroll",
+  "console.copy": "Copy",
+  "console.copied": "Log copied to the clipboard.",
+  "console.clear": "Clear view",
+  "console.openFile": "Open log file",
+  "console.openFileHint": "Writes a log snapshot to <data>/logs/engine-console.log and opens it.",
+  "console.openFailed": "Could not open the log file.",
+  "console.close": "Close console",
+  "console.lineCount": "{n} lines",
 
   "status.protected": "Protected",
   "status.partial": "Partial",
@@ -872,7 +1258,7 @@ const en: Dict = {
   "dashboard.noJobs": "No job run in this session.",
   "dashboard.enginesSummary": "Engines",
   "dashboard.enginesReady": "available",
-  "dashboard.enginesUnavailable": "unavailable",
+  "dashboard.enginesUnavailable": "to install",
   "dashboard.setupWarning": "The engine is not connected yet",
   "dashboard.setupWarningHint":
     "Set NLVS_ENGINE_PYTHON to the project interpreter, or install the runtime bundled in the package. There is no fallback to the system PATH.",
@@ -1132,9 +1518,10 @@ const en: Dict = {
   "engines.subtitle":
     "Real engine registry from the Python core. No engine is reported active unless it can actually run.",
   "engines.statusAvailable": "Available",
-  "engines.statusUnavailable": "Unavailable",
+  "engines.statusUnavailable": "Requires installation",
   "engines.statusExperimental": "Experimental",
   "engines.statusVerified": "Verified",
+  "engines.statusError": "Error",
   "engines.capabilities": "Capabilities",
   "engines.supportedOs": "Platforms",
   "engines.requires": "Requires",
@@ -1212,6 +1599,131 @@ const en: Dict = {
   "engines.limits.quality":
     "Objective measurements: they do not replace human listening or certify voice naturalness.",
   "engines.whenToUse.quality": "Before and after protection, to document the real degradation.",
+
+  "engines.hwTitle": "Detected hardware",
+  "engines.hwSubtitle":
+    "Read locally from the operating system (CPU, RAM, GPU and VRAM). No data leaves the computer.",
+  "engines.hwBadge": "detected locally",
+  "engines.hwCpu": "CPU",
+  "engines.hwCores": "{n} logical cores",
+  "engines.hwRam": "Total RAM",
+  "engines.hwGpu": "GPU",
+  "engines.hwVram": "Dedicated VRAM",
+  "engines.hwAiRuntime": "AI runtime (AudioSeal)",
+  "engines.hwOs": "System",
+  "engines.hwUnknown": "not detected",
+  "engines.hwNoGpu": "No GPU detected: DSP engines stay on CPU.",
+  "engines.hwNoVram": "VRAM not reported by the driver",
+  "engines.hwCpuOnly": "CPU only",
+  "engines.hwAiInstalled": "Installed ({variant})",
+  "engines.hwAiNotInstalled": "Not installed",
+  "engines.hwAiUnavailable": "Status unavailable",
+
+  "engines.rec.title": "Recommended protections",
+  "engines.rec.subtitle":
+    "Advice computed from detected hardware, real engine availability and installation state. No effectiveness score is invented: where no measurement exists it is stated.",
+  "engines.rec.noEffectiveness":
+    "This screen does not declare any anti-cloning effectiveness value: where no measurement exists it says \"experimental, not measured\".",
+  "engines.rec.mode": "Supported mode",
+  "engines.rec.requirements": "Real requirements",
+  "engines.rec.install": "Installation state",
+  "engines.rec.quality": "Expected quality",
+  "engines.rec.efficacy": "Anti-cloning effectiveness",
+  "engines.rec.fallback": "Fallback",
+  "engines.rec.advice": "Advice",
+  "engines.rec.reasonLabel": "Technical detail reported by the engine",
+  "engines.rec.statusAvailableNow": "Available now",
+  "engines.rec.statusVerifiedNow": "Verified in this session",
+  "engines.rec.statusExperimentalNow": "Available but experimental",
+  "engines.rec.statusUnavailableNow": "Requires installation in this build",
+  "engines.rec.installPresent": "Weights present ({n}/{total})",
+  "engines.rec.installMissing": "Weights missing ({n}/{total})",
+  "engines.rec.installManual": "No catalog weights: no automatic download is expected",
+  "engines.rec.unknownEngine":
+    "Engine not covered by the advisor: raw registry data is still shown.",
+  "engines.rec.notMeasured": "not measured",
+  "engines.rec.fallbackNoGpu":
+    "No NVIDIA/CUDA GPU detected: the engine stays usable with the CPU variant of the AI runtime (CPU + RAM). It is not excluded because of VRAM.",
+  "engines.rec.fallbackLowVram":
+    "Dedicated VRAM {vram}: below 4 GB the GPU variant may be impractical, but the engine is not excluded. Use the CPU variant of the AI runtime with enough free RAM.",
+  "engines.rec.fallbackGpu":
+    "NVIDIA GPU detected: {name}, {vram} of VRAM. The GPU variant of the AI runtime is selectable; the CPU variant always remains available.",
+  "engines.rec.fallbackCpu": "No GPU required: it runs on CPU with enough free RAM.",
+  "engines.rec.fallbackNone": "No fallback available: real prerequisites are not met.",
+  "engines.rec.modeByKind.anti_clone": "CPU (local DSP)",
+  "engines.rec.modeByKind.watermark": "CPU (local DSP)",
+  "engines.rec.modeByKind.provenance": "CPU (no GPU acceleration)",
+  "engines.rec.modeByKind.fingerprint": "CPU (local analysis)",
+  "engines.rec.modeByKind.quality": "CPU (local analysis)",
+  "engines.rec.efficacyByKind.anti_clone": "Experimental, not measured",
+  "engines.rec.efficacyByKind.watermark":
+    "Not applicable: a watermark traces the file, it does not prevent cloning. Robustness not measured.",
+  "engines.rec.efficacyByKind.provenance": "Not applicable: no audio modification.",
+  "engines.rec.efficacyByKind.fingerprint": "Not applicable: analysis only.",
+  "engines.rec.efficacyByKind.quality": "Not applicable: analysis only.",
+  "engines.rec.audioseal.mode":
+    "CPU or CUDA GPU, depending on the installed AI runtime variant; CPU fallback is always provided.",
+  "engines.rec.audioseal.requires":
+    "AI runtime installed, torch/torchaudio and the official generator + detector checkpoints. GPU: NVIDIA driver (CUDA) and VRAM; CPU: free RAM.",
+  "engines.rec.audioseal.quality":
+    "High for a neural watermark, but robustness is not measured by this app and depends on the official weights.",
+  "engines.rec.audioseal.efficacy":
+    "Experimental and not measured: the watermark identifies the file, it does not prevent cloning.",
+  "engines.rec.audioseal.advice":
+    "Recommended if you want a neural watermark and the weights are available; otherwise use the DSP watermark, which needs no download.",
+  "engines.rec.watermark_dsp.mode": "CPU only (DSP: numpy/scipy), no GPU required.",
+  "engines.rec.watermark_dsp.requires":
+    "numpy and scipy already included in the base package; no weights to download.",
+  "engines.rec.watermark_dsp.quality":
+    "Medium: the spread-spectrum watermark is designed to stay at a low level; robustness is not measured.",
+  "engines.rec.watermark_dsp.efficacy":
+    "Not applicable: it traces the file, it does not prevent cloning. Robustness not measured.",
+  "engines.rec.watermark_dsp.advice":
+    "Recommended on every published file: local traceability with no dependencies and no downloads.",
+  "engines.rec.spectral_cloak.mode": "CPU only (DSP: numpy/scipy), no GPU.",
+  "engines.rec.spectral_cloak.requires": "numpy and scipy already included; no external weights.",
+  "engines.rec.spectral_cloak.quality":
+    "Varies with strength: at high strength the timbre can sound less natural. Quality not measured.",
+  "engines.rec.spectral_cloak.efficacy":
+    "Experimental and not measured: the build includes no test against real cloners.",
+  "engines.rec.spectral_cloak.advice":
+    "Recommended only as an experimental layer, with balanced strength; it does not guarantee anti-cloning.",
+  "engines.rec.c2pa.mode": "CPU only: uses the external c2patool binary, no GPU.",
+  "engines.rec.c2pa.requires":
+    "c2patool 0.9.x available (bundle or data folder) and a local signing identity generated in the data dir.",
+  "engines.rec.c2pa.quality":
+    "No effect on audio: it adds a signed manifest with a local self-signed certificate.",
+  "engines.rec.c2pa.efficacy":
+    "Not applicable: it proves provenance, it does not reduce clonability or grant a legal identity.",
+  "engines.rec.c2pa.advice":
+    "Recommended if you need to show who processed the file and under which usage terms.",
+  "engines.rec.fingerprint.mode": "CPU only (numpy).",
+  "engines.rec.fingerprint.requires": "numpy already included in the base package.",
+  "engines.rec.fingerprint.quality":
+    "No effect on audio: local spectral imprint, not speaker recognition.",
+  "engines.rec.fingerprint.efficacy":
+    "Not applicable: analysis only, to link derived files and local receipts.",
+  "engines.rec.fingerprint.advice":
+    "Recommended to check whether a file derives from work protected on this installation.",
+  "engines.rec.quality.mode": "CPU only (numpy/scipy).",
+  "engines.rec.quality.requires": "numpy and scipy already included in the base package.",
+  "engines.rec.quality.quality":
+    "Objective measurements (peak, true peak, LUFS, clipping, SNR); they do not replace human listening.",
+  "engines.rec.quality.efficacy": "Not applicable: analysis only.",
+  "engines.rec.quality.advice":
+    "Recommended before and after protection, to document the real degradation.",
+  "engines.rec.safespeech.mode": "CPU only (torch, external research code); no hybrid mode.",
+  "engines.rec.safespeech.requires":
+    "Research code and official checkpoints provided by the user; never downloaded automatically.",
+  "engines.rec.safespeech.quality":
+    "Not assessable in this installation: weights are incomplete and the engine stays unavailable.",
+  "engines.rec.safespeech.efficacy": "Experimental and not measured; here the engine is unavailable.",
+  "engines.rec.safespeech.advice":
+    "Not recommended in this build: it will not become available until you provide the complete weights.",
+  "engines.notInRegistry": "Engine not present in the registry.",
+  "engines.unavailablePlain": "Not available in this installation.",
+  "engines.unavailableWithReason": "Unavailable: {reason}",
+  "engines.reasonFromEngine": "Detail reported by the engine",
 
   "profiles.title": "Profiles & Rights",
   "profiles.subtitle":
@@ -1297,6 +1809,25 @@ const en: Dict = {
   "settings.aiRemoved": "AI runtime removed",
   "settings.aiVerified": "AudioSeal verified",
   "settings.aiVerifyFailed": "AudioSeal verification failed",
+  "settings.aiStateError": "Error",
+  "settings.aiStateUnknown": "Unknown",
+  "settings.aiVariantCpu": "CPU",
+  "settings.aiVariantGpu": "GPU (CUDA)",
+  "settings.aiVariantCpuDesc":
+    "Runs on any PC: slower, uses CPU and RAM, no GPU requirement.",
+  "settings.aiVariantGpuDesc":
+    "Requires an NVIDIA GPU with CUDA drivers: uses dedicated VRAM and is faster.",
+  "settings.aiVariantUnavailable": "Not selectable: prerequisites not detected on this PC.",
+  "settings.aiExpectedSize": "Estimated download",
+  "settings.aiDevice": "Device",
+  "settings.aiCurrentVariant": "Installed variant",
+  "settings.aiHardwareTitle": "Detected hardware",
+  "settings.aiHardwareHint":
+    "The runtime is installed for one variant: CPU (any PC) or GPU (NVIDIA/CUDA). Insufficient VRAM does not exclude the engine: the CPU variant always remains.",
+  "settings.aiHardwareNoGpu":
+    "No NVIDIA/CUDA GPU detected: the GPU variant is not selectable, use the CPU variant.",
+  "settings.aiReinstallHint":
+    "Changing variant requires a new installation (Update, or Uninstall and reinstall).",
   "settings.modelsSection": "Models and cache",
   "settings.modelsHint":
     "No automatic download at startup. Weights download only when you press “Download”, with SHA-256 verification when declared.",
@@ -1307,6 +1838,10 @@ const en: Dict = {
   "settings.modelsList": "Weights and models",
   "settings.modelPresent": "Present",
   "settings.modelMissing": "Missing",
+  "settings.modelLabelAudiosealGenerator": "AudioSeal — watermark generator (16 bit)",
+  "settings.modelLabelAudiosealDetector": "AudioSeal — watermark detector (16 bit)",
+  "settings.modelLabelSafespeech": "SafeSpeech — research checkpoint (user-provided)",
+  "settings.modelEngineDetail": "Detail provided by the engine",
   "settings.download": "Download",
   "settings.downloading": "Downloading…",
   "settings.cancelDownload": "Cancel download",
@@ -1505,6 +2040,22 @@ const en: Dict = {
 const dictionaries: Record<Lang, Dict> = { it, en };
 
 export const i18n = $state<{ lang: Lang }>({ lang: "it" });
+
+/** Etichetta localizzata dello stato di un motore (mai stringhe grezze in UI). */
+export function engineStateLabel(status: string | null | undefined): string {
+  switch (status) {
+    case "available":
+      return t("engines.statusAvailable");
+    case "verified":
+      return t("engines.statusVerified");
+    case "experimental":
+      return t("engines.statusExperimental");
+    case "unavailable":
+      return t("engines.statusUnavailable");
+    default:
+      return t("engines.statusError");
+  }
+}
 
 export function setLang(lang: Lang): void {
   i18n.lang = lang;

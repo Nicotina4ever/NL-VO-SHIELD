@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t, hostErrorMessage } from "../i18n.svelte";
+  import { engineStateLabel, t, hostErrorMessage } from "../i18n.svelte";
   import { ui, toast } from "../ui.svelte";
   import { engine, engineUsableReason, loadSettings, loadProfiles } from "../engine.svelte";
   import { batch, startBatchJob, cancelBatchJob } from "../run.svelte";
@@ -324,7 +324,7 @@
                     <span class="small">{item.name}</span>
                     <span class="mono small faint">{roleLabel(role)}.{actionForRole(role)}</span>
                     <Badge
-                      label={item.status}
+                      label={engineStateLabel(item.status)}
                       tone={item.status === "unavailable" ? "err" : item.status === "experimental" ? "warn" : "ok"}
                     />
                   </span>

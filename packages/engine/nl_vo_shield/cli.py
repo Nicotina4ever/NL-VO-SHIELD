@@ -222,6 +222,89 @@ def cmd_engines(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- lab
+def _lab(ctx: AppContext):
+    from .qwen_lab import QwenLab
+
+    return QwenLab(ctx.data_dir, ctx.models)
+
+
+def _lab_progress() -> Any:
+    state = {"last": -10}
+
+    def callback(pct: int | None, message: str, downloaded: int, total: int | None) -> None:
+        if pct is None:
+            if message:
+                print(f"[lab] {message}", file=sys.stderr, flush=True)
+            return
+        if pct - state["last"] >= 2 or pct == 100:
+            state["last"] = pct
+            print(f"[lab {pct:3d}%] {message}", file=sys.stderr, flush=True)
+
+    return callback
+
+
+def cmd_lab(ctx: AppContext, args: argparse.Namespace) -> int:
+    lab = _lab(ctx)
+    action = args.lab_command
+    if action == "status":
+        _emit({"lab": lab.status()}, args.compact)
+        return 0
+    if action == "verify":
+        report = lab.verify(deep=bool(args.deep))
+        _emit({"lab": report}, args.compact)
+        return 0 if report.get("ok") else 2
+    if action == "install-engine":
+        result = lab.install_engine(args.device, progress=_lab_progress())
+        _emit({"lab": result}, args.compact)
+        return 0 if result.get("ok") else 2
+    if action == "uninstall-engine":
+        _emit({"lab": lab.uninstall_engine(remove_models=bool(args.remove_models))}, args.compact)
+        return 0
+    if action == "install-model":
+        result = lab.install_model(
+            args.id, source=args.source, local_path=args.local_path, progress=_lab_progress()
+        )
+        _emit({"lab": result}, args.compact)
+        return 0
+    if action == "uninstall-model":
+        _emit({"lab": lab.uninstall_model(args.id)}, args.compact)
+        return 0
+    if action == "install-whisper":
+        result = lab.install_whisper(
+            args.size, local_path=args.local_path, progress=_lab_progress()
+        )
+        _emit({"lab": result}, args.compact)
+        return 0
+    if action == "uninstall-whisper":
+        _emit({"lab": lab.uninstall_whisper(args.size)}, args.compact)
+        return 0
+    if action == "transcribe":
+        result = lab.transcribe(
+            args.audio, model=args.model, language=args.language, device=args.device,
+            progress=_lab_progress(),
+        )
+        _emit({"transcription": result}, args.compact)
+        return 0
+    if action == "run":
+        result = lab.run(
+            original=args.original,
+            protected=args.protected,
+            text=args.text,
+            ref_text=args.ref_text,
+            model_id=args.model,
+            language=args.language,
+            seed=args.seed,
+            device=args.device,
+            x_vector_only=bool(args.x_vector_only),
+            output_dir=args.output_dir,
+            progress=_lab_progress(),
+        )
+        _emit({"lab": result}, args.compact)
+        return 0
+    raise NlvsError(f"Unknown lab command: {action}")
+
+
 def cmd_models(ctx: AppContext, args: argparse.Namespace) -> int:
     if args.models_command == "list":
         models = ctx.models.list(verify_hash=not args.no_hash)
@@ -463,6 +546,45 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("engines", help="list engines and availability")
     p.add_argument("--install-hint", default=None, metavar="ENGINE_ID")
     p.set_defaults(func=cmd_engines)
+
+    p = sub.add_parser("lab", help="Qwen3-TTS test laboratory (optional runtime, explicit installs)")
+    lab_sub = p.add_subparsers(dest="lab_command", required=True)
+    lab_sub.add_parser("status")
+    lab_verify = lab_sub.add_parser("verify")
+    lab_verify.add_argument("--deep", action="store_true")
+    lab_engine = lab_sub.add_parser("install-engine")
+    lab_engine.add_argument("--device", default="cpu", choices=["cpu", "cuda", "auto"])
+    lab_engine = lab_sub.add_parser("uninstall-engine")
+    lab_engine.add_argument("--remove-models", action="store_true")
+    lab_model = lab_sub.add_parser("install-model")
+    lab_model.add_argument("id")
+    lab_model.add_argument("--source", default=None, choices=["download"])
+    lab_model.add_argument("--local-path", default=None)
+    lab_model = lab_sub.add_parser("uninstall-model")
+    lab_model.add_argument("id")
+    lab_whisper = lab_sub.add_parser("install-whisper")
+    lab_whisper.add_argument("size", choices=["tiny", "base", "small", "medium", "large-v3"])
+    lab_whisper.add_argument("--local-path", default=None)
+    lab_whisper = lab_sub.add_parser("uninstall-whisper")
+    lab_whisper.add_argument("size", choices=["tiny", "base", "small", "medium", "large-v3"])
+    lab_transcribe = lab_sub.add_parser("transcribe")
+    lab_transcribe.add_argument("audio")
+    lab_transcribe.add_argument("--model", default="base",
+                                choices=["tiny", "base", "small", "medium", "large-v3"])
+    lab_transcribe.add_argument("--language", default=None)
+    lab_transcribe.add_argument("--device", default="cpu", choices=["cpu", "cuda", "auto"])
+    lab_run = lab_sub.add_parser("run")
+    lab_run.add_argument("--original", required=True)
+    lab_run.add_argument("--protected", required=True)
+    lab_run.add_argument("--text", required=True)
+    lab_run.add_argument("--ref-text", default=None)
+    lab_run.add_argument("--model", default="qwen3-tts-0.6b")
+    lab_run.add_argument("--language", default="Italian")
+    lab_run.add_argument("--seed", type=int, default=0)
+    lab_run.add_argument("--device", default="cpu", choices=["cpu", "cuda", "auto"])
+    lab_run.add_argument("--x-vector-only", action="store_true")
+    lab_run.add_argument("--output-dir", default=None)
+    p.set_defaults(func=cmd_lab)
 
     p = sub.add_parser("models", help="model inventory and explicit downloads")
     models_sub = p.add_subparsers(dest="models_command", required=True)

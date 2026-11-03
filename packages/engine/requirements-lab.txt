@@ -1,0 +1,13 @@
+# NL VO Shield — Qwen3-TTS test laboratory (optional, isolated venv).
+#
+# These packages are NOT part of the base release and are NOT installed by
+# requirements.txt. They are installed explicitly into the isolated AI venv by
+# `lab install-engine` / `lab install-whisper` (RPC lab.install_engine /
+# lab.install_whisper). Model weights are downloaded separately, only on explicit
+# request, into <data>/models/qwen3-tts and <data>/models/whisper.
+
+qwen-tts==0.1.1
+faster-whisper>=1.1
+speechbrain>=1.1
+huggingface_hub>=0.30
+soundfile>=0.13

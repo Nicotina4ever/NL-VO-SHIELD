@@ -266,6 +266,21 @@ export interface HostPaths {
   dataDirSource: string;
 }
 
+export interface HardwareInfo {
+  /** true quando CPU e RAM sono stati letti davvero dal sistema. */
+  detected: boolean;
+  cpuModel?: string | null;
+  cpuLogicalCores?: number | null;
+  ramTotalBytes?: number | null;
+  gpuName?: string | null;
+  gpuVramBytes?: number | null;
+  gpuVendor?: string | null;
+  /** `nvidia-smi`, `system` oppure assente. */
+  gpuSource?: string | null;
+  /** Note oneste su ciò che non è stato possibile rilevare. */
+  notes: string[];
+}
+
 export interface HostInfo {
   appVersion: string;
   productName: string;
@@ -280,6 +295,8 @@ export interface HostInfo {
   language: string;
   theme: string;
   updater: UpdaterStatus;
+  /** CPU/RAM/GPU/VRAM rilevati dall'host (sola lettura, nessuna rete). */
+  hardware?: HardwareInfo | null;
 }
 
 export interface UpdaterStatus {

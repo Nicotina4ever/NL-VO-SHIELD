@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t, hostErrorMessage } from "../i18n.svelte";
+  import { engineStateLabel, t, hostErrorMessage } from "../i18n.svelte";
   import { ui, toast, goVerify } from "../ui.svelte";
   import {
     engine,
@@ -463,7 +463,7 @@
                     <span class="mono small">{selection.engine}.{actionForRole(selection.role)}</span>
                     {#if info}
                       <Badge
-                        label={info.status}
+                        label={engineStateLabel(info.status)}
                         tone={info.status === "unavailable" ? "err" : info.status === "experimental" ? "warn" : "ok"}
                       />
                     {/if}
@@ -518,7 +518,7 @@
                       <span class="small">{item.name}</span>
                       <span class="mono small faint">{roleLabel(role)}</span>
                       <Badge
-                        label={item.status}
+                        label={engineStateLabel(item.status)}
                         tone={item.status === "unavailable" ? "err" : item.status === "experimental" ? "warn" : "ok"}
                       />
                       {#if !usable && item.reason}
@@ -749,7 +749,7 @@
                 ></span>
                 <span class="mono truncate">{item.id}</span>
                 <span class="spacer"></span>
-                <span class="faint">{item.status}</span>
+                <span class="faint">{engineStateLabel(item.status)}</span>
               </div>
             {:else}
               <span class="small faint">{engine.enginesLoading ? t("common.loading") : t("engines.noEngines")}</span>

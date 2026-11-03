@@ -7,6 +7,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { t } from "./i18n.svelte";
 import type {
   CacheClearResult,
   ChainStep,
@@ -64,7 +65,7 @@ function normalizeError(err: unknown): NlError {
       return new NlError({ code: "HOST_ERROR", message: o.message, detail: err });
     }
   }
-  return new NlError({ code: "HOST_ERROR", message: "Errore host non riconosciuto", detail: err });
+  return new NlError({ code: "HOST_ERROR", message: t("errors.HOST_ERROR"), detail: err });
 }
 
 /** Normalizza qualsiasi errore host in NlError (per store e UI). */
@@ -76,8 +77,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
   if (!isTauri()) {
     throw new NlError({
       code: "NOT_TAURI",
-      message:
-        "Questa schermata deve girare nell'app desktop (Tauri). Il motore e il filesystem non sono raggiungibili dal browser.",
+      message: t("common.notTauriHint"),
     });
   }
   try {
@@ -99,6 +99,9 @@ export const ENGINE_EVENTS = {
   modelsFinished: "models://finished",
   modelsFailed: "models://failed",
   modelsChanged: "models://changed",
+  labProgress: "lab://progress",
+  labFinished: "lab://finished",
+  labFailed: "lab://failed",
 } as const;
 
 export async function onEvent<T>(name: string, handler: (payload: T) => void): Promise<UnlistenFn> {
@@ -116,6 +119,8 @@ export const engineApi = {
   health: () => call<Health>("engine_health"),
   restart: () => call<{ ok: boolean; message?: string }>("engine_restart"),
   logs: (limit = 250) => call<{ lines: EngineLogLine[] }>("engine_logs", { request: { limit } }),
+  openEngineLog: () =>
+    call<{ opened: boolean; path: string; lines: number }>("open_engine_log"),
   listEngines: () => call<{ engines: EngineInfo[] }>("list_engines"),
   installHint: (engineId: string) =>
     call<InstallHint>("engine_install_hint", { request: { engineId } }),
@@ -242,5 +247,35 @@ export const aiApi = {
   verify: () => call<{ ok: boolean; message?: string; confidence?: number }>("ai_verify"),
   jobStatus: (jobId: string) => call<AiJobStatus>("job_status", { request: { jobId } }),
   cancelJob: (jobId: string) => call<{ cancelled: boolean }>("cancel_job", { request: { jobId } }),
+};
+
+/* ------------------------------ laboratorio ------------------------------ */
+
+export const labApi = {
+  status: () => call<unknown>("lab_status"),
+  installModel: (request: { id: string; source?: string; localPath?: string | null }) =>
+    call<unknown>("lab_install_model", { request }),
+  uninstallModel: (id: string) => call<unknown>("lab_uninstall_model", { request: { id } }),
+  installWhisper: (request: {
+    model: string;
+    source?: string;
+    localPath?: string | null;
+  }) => call<unknown>("lab_install_whisper", { request }),
+  uninstallWhisper: (model: string) =>
+    call<unknown>("lab_uninstall_whisper", { request: { model } }),
+  transcribe: (request: { audio: string; model: string; language?: string; device?: string }) =>
+    call<unknown>("lab_transcribe", { request }),
+  verify: (deep = false) => call<unknown>("lab_verify", { deep }),
+  run: (request: {
+    original: string;
+    protected: string;
+    modelId: string;
+    text: string;
+    refText?: string;
+    language?: string;
+    seed?: number | null;
+    device?: string;
+    outputDir?: string | null;
+  }) => call<unknown>("lab_run", { request }),
 };
 

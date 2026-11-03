@@ -6,6 +6,7 @@ export type Page =
   | "protect"
   | "batch"
   | "verify"
+  | "lab"
   | "engines"
   | "profiles"
   | "settings"
@@ -24,6 +25,7 @@ export interface Toast {
 
 const THEME_KEY = "nlvs.theme";
 const LANG_KEY = "nlvs.lang";
+const CONSOLE_KEY = "nlvs.consoleOpen";
 const TOAST_TTL = 7000;
 
 export const ui = $state({
@@ -44,6 +46,8 @@ export const ui = $state({
   startRequest: 0,
   /** Dialog di prima configurazione della cartella dati (installazione non scrivibile). */
   dataDirDismissed: false,
+  /** Drawer console in-app (log motore), persistito. */
+  consoleOpen: false,
 });
 
 let toastSeq = 0;
@@ -57,6 +61,19 @@ export function toast(kind: ToastKind, message: string, title?: string): number 
 
 export function dismissToast(id: number): void {
   ui.toasts = ui.toasts.filter((toastItem) => toastItem.id !== id);
+}
+
+export function setConsoleOpen(open: boolean): void {
+  ui.consoleOpen = open;
+  try {
+    localStorage.setItem(CONSOLE_KEY, open ? "1" : "0");
+  } catch {
+    /* ambiente non browser */
+  }
+}
+
+export function toggleConsole(): void {
+  setConsoleOpen(!ui.consoleOpen);
 }
 
 export function navigate(page: Page): void {
@@ -111,12 +128,15 @@ function isTheme(value: string | null): value is Theme {
 export function initUi(): void {
   let storedTheme: string | null = null;
   let storedLang: string | null = null;
+  let storedConsole: string | null = null;
   try {
     storedTheme = localStorage.getItem(THEME_KEY);
     storedLang = localStorage.getItem(LANG_KEY);
+    storedConsole = localStorage.getItem(CONSOLE_KEY);
   } catch {
     /* ignore */
   }
+  ui.consoleOpen = storedConsole === "1";
   const theme: Theme = isTheme(storedTheme) ? storedTheme : "dark";
   const lang: Lang = isLang(storedLang) ? storedLang : i18n.lang;
   setTheme(theme);

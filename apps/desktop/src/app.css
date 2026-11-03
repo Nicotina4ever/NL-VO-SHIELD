@@ -738,13 +738,27 @@ textarea {
 }
 
 .seg {
-  display: inline-flex;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
   border: 1px solid var(--nl-border-strong);
   border-radius: var(--nl-radius-sm);
   overflow: hidden;
   background: var(--nl-bg-2);
 }
+/* Nel topbar i pulsanti restano centrati verticalmente come gli altri controlli. */
+.topbar .seg {
+  align-self: center;
+  flex: 0 0 auto;
+}
 .seg__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
   padding: 0 10px;
   border: 0;
   background: transparent;
@@ -752,6 +766,7 @@ textarea {
   font-size: 11.5px;
   cursor: pointer;
   min-height: 26px;
+  white-space: nowrap;
 }
 .seg__item:hover {
   color: var(--nl-text);
@@ -1484,6 +1499,10 @@ textarea {
 .chip--muted {
   color: var(--nl-text-faint);
 }
+.chip--ok {
+  color: var(--nl-ok);
+  border-color: color-mix(in srgb, var(--nl-ok) 45%, var(--nl-border));
+}
 
 .pill-bool {
   display: inline-flex;
@@ -1550,6 +1569,78 @@ textarea {
   font-family: var(--nl-font-mono);
 }
 
+/* ==================== hardware / recommended protections ================= */
+
+.hw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+.hw-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--nl-border);
+  border-radius: var(--nl-radius-sm);
+  background: var(--nl-bg-2);
+}
+.hw-item__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nl-text-muted);
+}
+.hw-item__value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nl-text);
+  overflow-wrap: anywhere;
+}
+
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+}
+.rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--nl-border);
+  border-radius: var(--nl-radius);
+  background: var(--nl-bg-2);
+}
+.rec-card--off {
+  border-style: dashed;
+}
+.rec-card__head {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.rec-card .kv {
+  font-size: 11px;
+  gap: 3px 10px;
+}
+.rec-card__foot {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+@media (max-width: 620px) {
+  .rec-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* =============================== helpers ================================= */
 
 .meter-row {
@@ -1598,5 +1689,96 @@ textarea {
   }
   .content {
     padding: 12px;
+  }
+}
+
+
+/* ============================== console drawer ============================ */
+
+.console-drawer {
+  position: fixed;
+  left: var(--nl-sidebar-w);
+  right: 0;
+  bottom: 0;
+  height: min(340px, 46vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--nl-surface);
+  border-top: 1px solid var(--nl-border-strong);
+  z-index: 70;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.35);
+}
+.console-drawer__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--nl-border);
+  flex-wrap: wrap;
+}
+.console-drawer__title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--nl-text-2);
+}
+.console-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--nl-bg-2);
+}
+.console-drawer__log {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--nl-font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--nl-text-2);
+}
+.log-line {
+  display: block;
+}
+.log-line--warn {
+  color: var(--nl-warn);
+}
+.log-line--err,
+.log-line--error,
+.log-line--stderr {
+  color: var(--nl-err);
+}
+.log-line--stdout,
+.log-line--log {
+  color: var(--nl-text-2);
+}
+.log-level {
+  color: var(--nl-text-faint);
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nl-text-muted);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: var(--nl-surface-3);
+  color: var(--nl-text);
+}
+@media (max-width: 900px) {
+  .console-drawer {
+    left: 60px;
   }
 }

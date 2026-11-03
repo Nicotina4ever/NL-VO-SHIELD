@@ -49,6 +49,12 @@ pub fn timeout_for(method: &str) -> Duration {
         "doctor.run" => Duration::from_secs(120),
         "job.start" | "batch.start" => Duration::from_secs(45),
         "job.cancel" => Duration::from_secs(20),
+        "lab.status" => Duration::from_secs(90),
+        "lab.install_model" | "lab.install_whisper" => Duration::from_secs(3600),
+        "lab.uninstall_model" | "lab.uninstall_whisper" => Duration::from_secs(120),
+        "lab.transcribe" => Duration::from_secs(1800),
+        "lab.run" => Duration::from_secs(120),
+        "lab.verify" => Duration::from_secs(900),
         _ => Duration::from_secs(30),
     }
 }
@@ -599,6 +605,9 @@ async fn handle_line(line: &str, pending: &PendingMap, sink: &Arc<dyn EventSink>
             "models.progress" => Some("models://progress"),
             "models.finished" => Some("models://finished"),
             "models.failed" => Some("models://failed"),
+            "lab.progress" => Some("lab://progress"),
+            "lab.finished" => Some("lab://finished"),
+            "lab.failed" => Some("lab://failed"),
             _ => None,
         };
         if let Some(event) = event {

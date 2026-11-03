@@ -189,3 +189,60 @@ def test_isolated_python_launcher_imports_package(tmp_path: Path) -> None:
     )
     assert completed.returncode == 0, completed.stderr
     assert "NL VO Shield engine" in completed.stdout
+
+
+def test_lab_status_cli(tmp_path: Path) -> None:
+    completed = _run(
+        CLI_LAUNCHER,
+        ["lab", "status", "--json", "--data-dir", str(tmp_path / "lab-data")],
+        tmp_path,
+    )
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)["lab"]
+    assert report["schema"] == "nlvs.qwen-lab-status/1"
+    assert report["qwen"]["default_model"] == "qwen3-tts-0.6b"
+    assert len(report["qwen"]["models"]) == 3
+    assert report["whisper"]["supported_sizes"] == ["tiny", "base", "small", "medium", "large-v3"]
+    assert report["device"]["cpu"] is True
+
+
+def test_lab_run_requires_ref_text_cli(tmp_path: Path, tone_wav: Path) -> None:
+    completed = _run(
+        CLI_LAUNCHER,
+        [
+            "lab", "run",
+            "--original", str(tone_wav),
+            "--protected", str(tone_wav),
+            "--text", "Ciao, questo è un test.",
+            "--json",
+            "--data-dir", str(tmp_path / "lab-data"),
+        ],
+        tmp_path,
+    )
+    assert completed.returncode == 1
+    error = json.loads(completed.stderr)
+    assert error["error"]["code"] == "LAB_REF_TEXT_REQUIRED"
+
+
+def test_lab_run_accepts_x_vector_only_cli(tmp_path: Path, tone_wav: Path) -> None:
+    # x_vector_only bypasses the ref_text validation and stops later because the
+    # optional runtime is not installed in the temporary data directory.
+    completed = _run(
+        CLI_LAUNCHER,
+        [
+            "lab", "run",
+            "--original", str(tone_wav),
+            "--protected", str(tone_wav),
+            "--text", "Ciao.",
+            "--x-vector-only",
+            "--json",
+            "--data-dir", str(tmp_path / "lab-data"),
+        ],
+        tmp_path,
+    )
+    assert completed.returncode == 1
+    error = json.loads(completed.stderr)
+    assert error["error"]["code"] in (
+        "LAB_REF_TEXT_REQUIRED", "LAB_MODEL_MISSING", "LAB_RUNTIME_MISSING",
+    )
+    assert error["error"]["code"] != "LAB_REF_TEXT_REQUIRED"

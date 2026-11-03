@@ -174,4 +174,64 @@ cloak (seed/distorzione/silenzio), ricevute Ed25519, C2PA (sign/verify/tamper/tr
 relativi), AudioSeal (skip onesto se i pesi non sono installati), fail-closed (engine
 required che fallisce o manca → nessun output protetto), preset e validazione catene,
 CLI (launcher con Python isolato, exit code, watch `--once`), RPC (id coerenti, progress,
-finished/failed, batch, models).
+finished/failed, batch, models). Include `tests/test_qwen_lab.py` per il laboratorio.
+
+## Laboratorio di prova Qwen3-TTS (opzionale, esplicito)
+
+`nl_vo_shield/qwen_lab.py` implementa un laboratorio **A/B** che misura se una voce
+protetta è più difficile da clonare: lo stesso testo viene sintetizzato con Qwen3-TTS
+usando come riferimento prima l'audio originale e poi l'audio protetto; i due cloni
+vengono confrontati con metriche di qualità e speaker similarity ECAPA (se gli asset
+sono disponibili). **Non** fa parte della pipeline di protezione e non tocca il desktop.
+
+Regole:
+* runtime, modelli e pacchetti sono installati **solo su richiesta esplicita**; nessun
+  download implicito, mai al primo avvio;
+* il runtime riusa il venv AI esistente (`<data>/runtime/ai/venv`, quello di AudioSeal).
+  Se `pip` trova un conflitto di dipendenze viene creato un venv dedicato
+  `<data>/runtime/qwen/venv` e lo stato lo dichiara (`isolated=true` + motivo);
+  PyTorch non viene duplicato quando è già presente nel venv condiviso;
+* i modelli vanno in `<data>/models/qwen3-tts/<dir>` e `<data>/models/whisper/<size>`;
+  un `local_path` già scaricato viene **registrato senza copiare nulla**;
+* `ref_text` è obbligatorio salvo `x_vector_only=true` (trascrivi prima con Whisper);
+* il seed (Python/NumPy/Torch) è impostato prima di **ogni** generazione;
+* senza asset ECAPA la similarità è `available=false` con motivo reale: nessun numero
+  inventato. In sviluppo gli asset possono essere indicati con `NLVS_ECAPA_DIR`;
+* GPU solo se il runtime PyTorch la supporta davvero; altrimenti `device=cpu`.
+
+CLI:
+
+```bat
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab status --json
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab install-engine --device cpu
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab install-model qwen3-tts-0.6b
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab install-model qwen3-tts-tokenizer
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab install-whisper tiny
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab transcribe <riferimento.wav> --model tiny --language it
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab run --original <orig.wav> --protected <prot.wav> ^
+    --text "Testo nuovo." --ref-text "<trascrizione del riferimento>" --model qwen3-tts-0.6b --seed 0
+"%NLVS_ENGINE_PYTHON%" nlvs_engine.py lab verify --deep
+```
+
+RPC (`nlvs_rpc.py`), stessi eventi asincroni con prefisso `lab.`
+(`lab.progress`, `lab.finished`, `lab.failed`):
+
+| Metodo | Parametri | Note |
+|---|---|---|
+| `lab.status` | `{}` | runtime, modelli Qwen/Whisper, device reale, ECAPA, percorsi |
+| `lab.install_engine` | `{device:"cpu"\|"cuda"\|"auto"}` | pip nel venv AI (async job) |
+| `lab.uninstall_engine` | `{remove_models?:bool}` | rimuove solo ciò che è del laboratorio |
+| `lab.install_model` | `{id, source?, local_path?}` | download async; `local_path` = registrazione sincrona, nessuna copia |
+| `lab.uninstall_model` | `{id}` | spazio recuperato; `local_path` esterni mai cancellati |
+| `lab.install_whisper` | `{size, local_path?}` | pip faster-whisper + download esplicito (async) |
+| `lab.uninstall_whisper` | `{size}` | rimuove il modello della taglia |
+| `lab.transcribe` | `{audio, model, language?}` | ritorna `{transcription:{text,...}}` |
+| `lab.run` | `{original, protected, model_id?, text, ref_text?, language?, seed?, device?, x_vector_only?, output_dir?}` | async job; risultato con WAV cloni, qualità, similarità |
+| `lab.verify` | `{deep?}` | import + file attesi + device (+ load reale con `deep`) |
+
+Esito di `lab.run`: `{status:"completed", model, text, ref_text, language, seed, device,
+reference:{original,protected}, outputs:{original_clone:{path,sha256,...},
+protected_clone:{...}}, quality:{...}, speaker_similarity:{available, original_clone_vs_reference,
+protected_clone_vs_reference, delta_protected_minus_original, ...}, timings, warnings}`.
+I confronti sono di laboratorio su voce autorizzata: non provano il comportamento di
+ElevenLabs né garantiscono una protezione.

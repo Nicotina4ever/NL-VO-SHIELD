@@ -149,6 +149,60 @@
 
   const host = $derived(engine.host);
   const modelSettings = $derived(engine.modelSettings);
+  const hardware = $derived(engine.host?.hardware ?? null);
+  /** true/false quando la disponibilità CUDA è nota, null quando non è ancora rilevabile. */
+  const cudaGpuDetected = $derived.by((): boolean | null => {
+    if (aiRuntime) return Boolean(aiRuntime.gpu?.available);
+    if (!hardware) return null;
+    if (hardware.gpuSource === "nvidia-smi") return true;
+    if ((hardware.gpuVendor ?? "").toUpperCase() === "NVIDIA") return true;
+    return (hardware.gpuName ?? "").toLowerCase().includes("nvidia");
+  });
+
+  function aiStateLabel(state: string | null | undefined): string {
+    if (state === "available") return t("settings.aiAvailable");
+    if (state === "not_installed") return t("settings.aiNotInstalled");
+    if (state === "error") return t("settings.aiStateError");
+    return t("settings.aiStateUnknown");
+  }
+
+  function aiVariantName(variant: string | null | undefined): string {
+    if (variant === "gpu" || variant === "cuda") return t("settings.aiVariantGpu");
+    if (variant === "cpu") return t("settings.aiVariantCpu");
+    return variant ?? "—";
+  }
+
+  function aiVariantDescription(id: string, fallback: string): string {
+    if (id === "cpu") return t("settings.aiVariantCpuDesc");
+    if (id === "gpu") return t("settings.aiVariantGpuDesc");
+    return fallback;
+  }
+
+  const hardwareSummary = $derived.by(() => {
+    const parts: string[] = [];
+    if (hardware?.cpuModel) parts.push(`${t("engines.hwCpu")}: ${hardware.cpuModel}`);
+    if (hardware?.ramTotalBytes) parts.push(`${t("engines.hwRam")}: ${formatBytes(hardware.ramTotalBytes)}`);
+    if (hardware?.gpuName) {
+      const vram = hardware.gpuVramBytes
+        ? ` (${t("engines.hwVram")}: ${formatBytes(hardware.gpuVramBytes)})`
+        : "";
+      parts.push(`${t("engines.hwGpu")}: ${hardware.gpuName}${vram}`);
+    } else {
+      parts.push(`${t("engines.hwGpu")}: ${t("engines.hwNoGpu")}`);
+    }
+    return parts.join(" · ");
+  });
+
+  /** Etichetta localizzata per i modelli del catalogo noti; fallback all'etichetta del motore. */
+  function modelLabel(model: ModelInfo): string {
+    const keys: Record<string, string> = {
+      "audioseal-generator": "settings.modelLabelAudiosealGenerator",
+      "audioseal-detector": "settings.modelLabelAudiosealDetector",
+      "safespeech-weights": "settings.modelLabelSafespeech",
+    };
+    const key = keys[model.id];
+    return key ? t(key) : model.label;
+  }
 
   function syncFromSettings(): void {
     const hostSettings = engine.settings?.host;
@@ -301,7 +355,7 @@
     try {
       const response = await modelsApi.download(model.id);
       setModelDownloading(model.id, true, response.jobId);
-      toast("info", t("settings.downloadStarted"), model.label);
+      toast("info", t("settings.downloadStarted"), modelLabel(model));
     } catch (err) {
       toast("err", t("settings.downloadFailed"), hostErrorMessage(err as { code?: string; message?: string }));
       await loadModels();
@@ -311,7 +365,7 @@
   async function cancelDownload(model: ModelInfo): Promise<void> {
     try {
       const response = await modelsApi.cancelDownload(model.id, engine.modelJobs[model.id]);
-      if (response.cancelled) toast("info", t("settings.downloadCancelled"), model.label);
+      if (response.cancelled) toast("info", t("settings.downloadCancelled"), modelLabel(model));
     } catch (err) {
       toast("err", t("common.error"), hostErrorMessage(err as { code?: string; message?: string }));
     }
@@ -555,15 +609,29 @@
     </div>
     <div class="card__body">
       <p class="small muted">{t("settings.aiHint")}</p>
+      <div class="hint-box small" style="margin-top:10px">
+        <strong>{t("settings.aiHardwareTitle")}:</strong> {hardwareSummary}
+      </div>
+      {#if cudaGpuDetected === false}
+        <div class="warn-box small" style="margin-top:10px">{t("settings.aiHardwareNoGpu")}</div>
+      {:else if cudaGpuDetected}
+        <p class="small faint" style="margin:8px 0 0">{t("settings.aiHardwareHint")}</p>
+      {/if}
       {#if aiRuntime}
         <div class="grid grid-2" style="gap:12px;margin-top:10px">
           <div class="field">
             <span class="field__label">{t("settings.aiComponent")}</span>
-            <div class="mono small">{aiRuntime.name} · v{aiRuntime.version}</div>
+            <div class="mono small">{t("settings.aiSection")} · v{aiRuntime.version}</div>
             <span class="field__help">
-              {t("settings.aiState")}: {aiRuntime.state}
+              {t("settings.aiState")}: {aiStateLabel(aiRuntime.state)}
               · {t("common.size")}: {formatBytes(aiRuntime.size_bytes)}
             </span>
+            {#if aiRuntime.installed && (aiRuntime.variant || aiRuntime.device)}
+              <span class="field__help">
+                {t("settings.aiCurrentVariant")}: {aiVariantName(aiRuntime.variant ?? aiRuntime.device)}
+                · {t("settings.aiDevice")}: {aiRuntime.device ?? "—"}
+              </span>
+            {/if}
           </div>
           <div class="field">
             <span class="field__label">{t("settings.aiPython")}</span>
@@ -576,7 +644,7 @@
 
         <div class="row" style="margin-top:12px;gap:16px;flex-wrap:wrap">
           {#each aiRuntime.variants as variant (variant.id)}
-            <label class="check">
+            <label class="check" title={variant.available ? undefined : t("settings.aiVariantUnavailable")}>
               <input
                 type="radio"
                 name="ai-runtime-variant"
@@ -585,27 +653,31 @@
                 disabled={!variant.available || aiBusy}
               />
               <span>
-                {variant.label}
-                <span class="small faint">({formatBytes(variant.expected_download_bytes)})</span>
+                {aiVariantName(variant.id)}
+                <span class="small faint">({t("settings.aiExpectedSize")}: {formatBytes(variant.expected_download_bytes)})</span>
+                {#if !variant.available}
+                  <span class="small faint">· {t("settings.aiVariantUnavailable")}</span>
+                {/if}
               </span>
             </label>
           {/each}
         </div>
         {#each aiRuntime.variants as variant (variant.id)}
           {#if variant.id === aiVariant}
-            <p class="small faint">{variant.description}</p>
+            <p class="small faint">{aiVariantDescription(variant.id, variant.description)}</p>
           {/if}
         {/each}
+        <p class="small faint" style="margin:0">{t("settings.aiReinstallHint")}</p>
 
         {#if !aiRuntime.bootstrap_python}
           <div class="warn-box small" style="margin-top:10px">{t("settings.aiBootstrapMissing")}</div>
         {/if}
 
         {#if aiBusy}
-          <div style="margin-top:12px">
+          <div style="margin-top:12px" title={aiJob?.progress?.message ?? undefined}>
             <ProgressBar
               value={aiJob?.progress?.pct ?? 0}
-              label={aiJob?.progress?.message ?? t("settings.aiInstalling")}
+              label={t("settings.aiInstalling")}
             />
             <div class="row" style="margin-top:6px">
               <span class="small faint">
@@ -619,7 +691,9 @@
         {/if}
 
         {#if aiError}
-          <div class="warn-box small" style="margin-top:10px">{aiError}</div>
+          <div class="warn-box small" style="margin-top:10px">
+            <strong>{t("common.error")}:</strong> {aiError}
+          </div>
         {/if}
 
         <div class="btn-row" style="margin-top:12px;flex-wrap:wrap">
@@ -732,13 +806,16 @@
                   />
                 </td>
                 <td>
-                  <div class="bold">{model.label}</div>
+                  <div class="bold">{modelLabel(model)}</div>
                   <div class="small faint mono">{model.id} · {model.kind}</div>
                   {#if model.licenseNote}
                     <div class="small faint" style="max-width:420px">{model.licenseNote}</div>
                   {/if}
                   {#if model.reason}
-                    <div class="small warn-box" style="margin-top:4px;max-width:440px">{model.reason}</div>
+                    <details style="margin-top:4px;max-width:440px">
+                      <summary class="small faint" style="cursor:pointer">{t("settings.modelEngineDetail")}</summary>
+                      <div class="small warn-box" style="margin-top:4px">{model.reason}</div>
+                    </details>
                   {/if}
                   {#if model.downloading}
                     <div style="margin-top:4px;max-width:220px">

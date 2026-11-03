@@ -21,6 +21,7 @@ import platform
 import re
 import shutil
 import subprocess
+_CREATE_NO_WINDOW = 0x08000000 if __import__('os').name == 'nt' else 0
 import sys
 import threading
 import time
@@ -499,6 +500,7 @@ class AIRuntime:
                 text=True,
                 bufsize=1,
                 env=env,
+                creationflags=_CREATE_NO_WINDOW,
             )
             assert process.stdout is not None
             last_emit = 0.0

@@ -6,6 +6,7 @@ import {
   NlError,
   toNlError,
 } from "./ipc";
+import { t } from "./i18n.svelte";
 import type {
   EngineInfo,
   EngineLogLine,
@@ -120,8 +121,12 @@ export function isEngineUsable(id: string): boolean {
 
 export function engineUsableReason(id: string): string | null {
   const info = engineById(id);
-  if (!info) return "engine non presente nel registro";
-  if (info.status === "unavailable") return info.reason ?? "engine non disponibile";
+  if (!info) return t("engines.notInRegistry");
+  if (info.status === "unavailable") {
+    return info.reason
+      ? t("engines.unavailableWithReason", { reason: info.reason })
+      : t("engines.unavailablePlain");
+  }
   return null;
 }
 
@@ -260,7 +265,7 @@ export function applyEngineStatus(state: string, message?: string | null): void 
     engine.online = false;
     engine.error = new NlError({
       code: "ENGINE_EXITED",
-      message: message ?? "Il processo del motore è terminato.",
+      message: message ?? t("errors.ENGINE_EXITED"),
     });
   } else if (state === "starting" || state === "restarting") {
     engine.conn = "starting";

@@ -258,3 +258,41 @@ def test_batch_via_rpc(rpc: RpcClient, tmp_path: Path) -> None:
     batch = finished["params"]["result"]
     assert batch["status"] == "protected"
     assert len(batch["items"]) == 2
+
+
+def test_lab_status_and_ref_text_validation(rpc: RpcClient) -> None:
+    status = rpc.request("lab.status")["result"]["lab"]
+    assert status["schema"] == "nlvs.qwen-lab-status/1"
+    assert status["qwen"]["default_model"] == "qwen3-tts-0.6b"
+    assert status["device"]["cpu"] is True
+    assert "ecapa" in status
+
+    response = rpc.request(
+        "lab.run",
+        {"original": "a.wav", "protected": "b.wav", "text": "Ciao"},
+    )
+    assert "error" in response
+    assert "ref_text" in response["error"]["message"]
+
+
+def test_lab_install_model_local_path_via_rpc(rpc: RpcClient, tmp_path: Path) -> None:
+    from nl_vo_shield.qwen_lab import QWEN_MODELS
+
+    spec = QWEN_MODELS[0]
+    local = tmp_path / "qwen-local"
+    for relative in spec.expected_files:
+        target = local / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"fake")
+    response = rpc.request(
+        "lab.install_model", {"id": spec.id, "local_path": str(local)}
+    )
+    assert "result" in response, response
+    assert response["result"]["lab"]["status"] == "registered"
+    status = rpc.request("lab.status")["result"]["lab"]
+    entry = next(item for item in status["qwen"]["models"] if item["id"] == spec.id)
+    assert entry["installed"] is True
+    assert entry["source"] == "local_path"
+    removed = rpc.request("lab.uninstall_model", {"id": spec.id})["result"]["lab"]
+    assert removed["freed_bytes"] == 0
+    assert (local / "config.json").is_file()

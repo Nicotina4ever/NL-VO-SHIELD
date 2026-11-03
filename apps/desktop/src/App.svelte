@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import logoUrl from "../../../assets/LogoMio.svg";
   import { t, i18n, hostErrorMessage } from "./lib/i18n.svelte";
-  import { ui, navigate, requestOpenFile, setLanguage, setTheme, toast } from "./lib/ui.svelte";
+  import { ui, navigate, requestOpenFile, setLanguage, setTheme, setConsoleOpen, toggleConsole, toast } from "./lib/ui.svelte";
   import {
     bootEngine,
     connect,
@@ -16,12 +16,14 @@
   import { isTauri } from "./lib/ipc";
   import Icon from "./lib/components/Icon.svelte";
   import Toasts from "./lib/components/Toasts.svelte";
+  import ConsoleDrawer from "./lib/components/ConsoleDrawer.svelte";
   import Modal from "./lib/components/Modal.svelte";
 
   import Dashboard from "./lib/pages/Dashboard.svelte";
   import Protect from "./lib/pages/Protect.svelte";
   import Batch from "./lib/pages/Batch.svelte";
   import Verify from "./lib/pages/Verify.svelte";
+import Laboratorio from "./lib/pages/Laboratorio.svelte";
   import Engines from "./lib/pages/Engines.svelte";
   import Profiles from "./lib/pages/Profiles.svelte";
   import Settings from "./lib/pages/Settings.svelte";
@@ -89,6 +91,7 @@
         { page: "protect", icon: "shield", key: "nav.protect" },
         { page: "batch", icon: "batch", key: "nav.batch" },
         { page: "verify", icon: "verify", key: "nav.verify" },
+        { page: "lab", icon: "lab", key: "nav.lab" },
       ],
     },
     {
@@ -115,12 +118,21 @@
       if (ui.modalDepth === 0) ui.startRequest += 1;
       return;
     }
+    if (mod && event.key === "`") {
+      event.preventDefault();
+      toggleConsole();
+      return;
+    }
     if (event.key === "F1" || (mod && event.key === "/")) {
       event.preventDefault();
       ui.shortcutsOpen = !ui.shortcutsOpen;
       return;
     }
     if (event.key === "Escape") {
+      if (ui.consoleOpen) {
+        setConsoleOpen(false);
+        return;
+      }
       if (ui.shortcutsOpen) {
         ui.shortcutsOpen = false;
         return;
@@ -235,6 +247,16 @@
         <Icon name="refresh" size={15} />
       </button>
 
+      <button
+        class="btn btn--ghost btn--sm"
+        onclick={() => toggleConsole()}
+        aria-pressed={ui.consoleOpen}
+        title={t("console.open")}
+        aria-label={t("console.open")}
+      >
+        <Icon name="terminal" size={15} />
+      </button>
+
       <div class="seg" role="group" aria-label={t("settings.language")}>
         <button
           class="seg__item {i18n.lang === 'it' ? 'active' : ''}"
@@ -278,6 +300,8 @@
         <Batch />
       {:else if ui.page === "verify"}
         <Verify />
+      {:else if ui.page === "lab"}
+        <Laboratorio />
       {:else if ui.page === "engines"}
         <Engines />
       {:else if ui.page === "profiles"}
@@ -294,6 +318,7 @@
 </div>
 
 <Toasts />
+<ConsoleDrawer open={ui.consoleOpen} />
 
 {#if needsDataDirModal}
   <Modal title={t("datadir.title")} onclose={() => (ui.dataDirDismissed = true)}>

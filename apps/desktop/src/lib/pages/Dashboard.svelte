@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "../i18n.svelte";
+  import { engineStateLabel, t, hostErrorMessage } from "../i18n.svelte";
   import {
     bootEngine,
     connect,
@@ -72,7 +72,7 @@
         <Icon name="alert" size={15} />
         {t("dashboard.setupWarning")}
       </div>
-      <div>{engine.error?.message ?? t("dashboard.setupWarningHint")}</div>
+      <div>{hostErrorMessage(engine.error) || t("dashboard.setupWarningHint")}</div>
       <div class="small" style="margin-top:6px">
         {t("diagnostics.pythonSource")}: <strong>{t(pythonSourceKey)}</strong>
         {#if engine.host?.python?.path}
@@ -237,7 +237,7 @@
                 </td>
                 <td>
                   <Badge
-                    label={t(`status.${item.status}`)}
+                    label={engineStateLabel(item.status)}
                     tone={jobStatusTone(item.status)}
                   />
                 </td>

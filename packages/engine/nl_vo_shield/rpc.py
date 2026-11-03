@@ -229,6 +229,16 @@ class RpcServer:
             "ai.install": self._ai_install,
             "ai.uninstall": self._ai_uninstall,
             "ai.verify": self._ai_verify,
+            "lab.status": self._lab_status,
+            "lab.install_engine": self._lab_install_engine,
+            "lab.uninstall_engine": self._lab_uninstall_engine,
+            "lab.install_model": self._lab_install_model,
+            "lab.uninstall_model": self._lab_uninstall_model,
+            "lab.install_whisper": self._lab_install_whisper,
+            "lab.uninstall_whisper": self._lab_uninstall_whisper,
+            "lab.transcribe": self._lab_transcribe,
+            "lab.run": self._lab_run,
+            "lab.verify": self._lab_verify,
             "cache.size": self._cache_size,
             "cache.clear": self._cache_clear,
             "open_path": self._open_path,
@@ -606,6 +616,186 @@ class RpcServer:
 
     def _ai_verify(self, params: dict[str, Any]) -> dict[str, Any]:
         return self._ai_runtime().verify()
+
+    # ------------------------------------------------------------------ Qwen lab
+    def _qwen_lab(self):
+        from .qwen_lab import QwenLab
+
+        return QwenLab(self.ctx.data_dir, self.ctx.models)
+
+    def _lab_status(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"lab": self._qwen_lab().status()}
+
+    def _lab_install_engine(self, params: dict[str, Any]) -> dict[str, Any]:
+        device = str(params.get("device") or "cpu").lower()
+        if device not in ("cpu", "cuda", "auto"):
+            raise RpcError(INVALID_PARAMS, "device must be 'cpu', 'cuda' or 'auto'")
+        lab = self._qwen_lab()
+        job_id = full_id()
+
+        def runner(emit: Callable[..., None], cancel: threading.Event) -> dict[str, Any]:
+            def progress(pct: int | None, message: str, downloaded: int, total: int | None) -> None:
+                emit(pct, message, downloaded=downloaded, total=total)
+
+            return lab.install_engine(device, progress=progress, cancel=cancel)
+
+        started = self.jobs.start(
+            "lab.install_engine",
+            runner,
+            job_id=job_id,
+            progress_method="lab.progress",
+            finished_method="lab.finished",
+            failed_method="lab.failed",
+            extra={"device": device},
+        )
+        return {**started, "device": device}
+
+    def _lab_uninstall_engine(self, params: dict[str, Any]) -> dict[str, Any]:
+        remove_models = bool(params.get("remove_models", False))
+        return {"lab": self._qwen_lab().uninstall_engine(remove_models=remove_models)}
+
+    def _lab_install_model(self, params: dict[str, Any]) -> dict[str, Any]:
+        model_id = self._require(params, "id", str)
+        local_path = params.get("local_path")
+        source = params.get("source")
+        if local_path is not None and not isinstance(local_path, str):
+            raise RpcError(INVALID_PARAMS, "local_path must be a string")
+        if source is not None and not isinstance(source, str):
+            raise RpcError(INVALID_PARAMS, "source must be a string")
+        lab = self._qwen_lab()
+        if local_path:
+            return {"lab": lab.install_model(model_id, source=source, local_path=local_path)}
+        job_id = full_id()
+
+        def runner(emit: Callable[..., None], cancel: threading.Event) -> dict[str, Any]:
+            def progress(pct: int | None, message: str, downloaded: int, total: int | None) -> None:
+                emit(pct, message, downloaded=downloaded, total=total)
+
+            return lab.install_model(model_id, source=source, progress=progress, cancel=cancel)
+
+        started = self.jobs.start(
+            "lab.install_model",
+            runner,
+            job_id=job_id,
+            progress_method="lab.progress",
+            finished_method="lab.finished",
+            failed_method="lab.failed",
+            extra={"model_id": model_id},
+        )
+        return {**started, "model_id": model_id}
+
+    def _lab_uninstall_model(self, params: dict[str, Any]) -> dict[str, Any]:
+        model_id = self._require(params, "id", str)
+        return {"lab": self._qwen_lab().uninstall_model(model_id)}
+
+    def _lab_install_whisper(self, params: dict[str, Any]) -> dict[str, Any]:
+        size = str(params.get("size") or params.get("model") or "base")
+        local_path = params.get("local_path")
+        if local_path is not None and not isinstance(local_path, str):
+            raise RpcError(INVALID_PARAMS, "local_path must be a string")
+        lab = self._qwen_lab()
+        if local_path:
+            return {"lab": lab.install_whisper(size, local_path=local_path)}
+        job_id = full_id()
+
+        def runner(emit: Callable[..., None], cancel: threading.Event) -> dict[str, Any]:
+            def progress(pct: int | None, message: str, downloaded: int, total: int | None) -> None:
+                emit(pct, message, downloaded=downloaded, total=total)
+
+            return lab.install_whisper(size, progress=progress, cancel=cancel)
+
+        started = self.jobs.start(
+            "lab.install_whisper",
+            runner,
+            job_id=job_id,
+            progress_method="lab.progress",
+            finished_method="lab.finished",
+            failed_method="lab.failed",
+            extra={"size": size},
+        )
+        return {**started, "size": size}
+
+    def _lab_uninstall_whisper(self, params: dict[str, Any]) -> dict[str, Any]:
+        size = str(params.get("size") or params.get("model") or "base")
+        return {"lab": self._qwen_lab().uninstall_whisper(size)}
+
+    def _lab_transcribe(self, params: dict[str, Any]) -> dict[str, Any]:
+        audio = self._require(params, "audio", str)
+        model = str(params.get("model") or "base")
+        language = params.get("language")
+        if language is not None and not isinstance(language, str):
+            raise RpcError(INVALID_PARAMS, "language must be a string")
+        device = str(params.get("device") or "cpu")
+        if device not in ("cpu", "cuda", "auto"):
+            raise RpcError(INVALID_PARAMS, "device must be 'cpu', 'cuda' or 'auto'")
+        return {"transcription": self._qwen_lab().transcribe(
+            audio, model=model, language=language or None, device=device
+        )}
+
+    def _lab_run(self, params: dict[str, Any]) -> dict[str, Any]:
+        original = self._require(params, "original", str)
+        protected = self._require(params, "protected", str)
+        text = self._require(params, "text", str)
+        ref_text = params.get("ref_text")
+        if ref_text is not None and not isinstance(ref_text, str):
+            raise RpcError(INVALID_PARAMS, "ref_text must be a string")
+        x_vector_only = bool(params.get("x_vector_only", False))
+        if not x_vector_only and not str(ref_text or "").strip():
+            raise RpcError(
+                INVALID_PARAMS,
+                "ref_text is required unless x_vector_only=true: transcribe the reference with "
+                "lab.transcribe and pass the text explicitly",
+                {"code": "LAB_REF_TEXT_REQUIRED", "requires": ["ref_text"]},
+            )
+        model_id = str(params.get("model_id") or "qwen3-tts-0.6b")
+        language = str(params.get("language") or "Italian")
+        try:
+            seed = int(params.get("seed", 0))
+        except (TypeError, ValueError) as exc:
+            raise RpcError(INVALID_PARAMS, "seed must be an integer") from exc
+        device = str(params.get("device") or "cpu")
+        if device not in ("cpu", "cuda", "auto"):
+            raise RpcError(INVALID_PARAMS, "device must be 'cpu', 'cuda' or 'auto'")
+        output_dir = params.get("output_dir")
+        if output_dir is not None and not isinstance(output_dir, str):
+            raise RpcError(INVALID_PARAMS, "output_dir must be a string")
+        lab = self._qwen_lab()
+        job_id = full_id()
+
+        def runner(emit: Callable[..., None], cancel: threading.Event) -> dict[str, Any]:
+            def progress(pct: int | None, message: str, downloaded: int, total: int | None) -> None:
+                emit(pct, message, downloaded=downloaded, total=total)
+
+            return lab.run(
+                original=original,
+                protected=protected,
+                text=text,
+                ref_text=ref_text,
+                model_id=model_id,
+                language=language,
+                seed=seed,
+                device=device,
+                x_vector_only=x_vector_only,
+                output_dir=output_dir,
+                progress=progress,
+                cancel=cancel,
+                job_id=job_id,
+            )
+
+        started = self.jobs.start(
+            "lab.run",
+            runner,
+            job_id=job_id,
+            progress_method="lab.progress",
+            finished_method="lab.finished",
+            failed_method="lab.failed",
+            extra={"model_id": model_id, "device": device},
+        )
+        return {**started, "model_id": model_id}
+
+    def _lab_verify(self, params: dict[str, Any]) -> dict[str, Any]:
+        deep = bool(params.get("deep", False))
+        return {"lab": self._qwen_lab().verify(deep=deep)}
 
     def _cache_size(self, params: dict[str, Any]) -> dict[str, Any]:
         return self.ctx.cache.size()

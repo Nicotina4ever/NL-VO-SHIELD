@@ -20,7 +20,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import __version__
+import numpy as np
+
 from .audio_io import AudioBuffer, choose_subtype, load_audio, write_audio_atomic
+from .quality import _true_peak
 from .engines.base import EngineContext, EngineRegistry
 from .errors import (
     EngineUnavailable,
@@ -45,6 +48,51 @@ _TRANSFORM_ACTIONS = {"embed", "perturb"}
 _VERIFY_ACTIONS = {"detect", "verify"}
 _SIGN_ACTIONS = {"sign"}
 _ALLOWED_ACTIONS = _TRANSFORM_ACTIONS | _VERIFY_ACTIONS | _SIGN_ACTIONS
+
+
+# Per-engine headroom needed by the perturbation.  It is intentionally small
+# and derived from the requested intensity instead of a blanket -1 dBTP.
+_HEADROOM_BY_STRENGTH = {
+    "spectral_cloak": {"low": 0.03, "medium": 0.05, "high": 0.10, "extreme": 0.15},
+    "safe_speech": {"low": 0.02, "medium": 0.04, "high": 0.08},
+    "safespeech": {"low": 0.02, "medium": 0.04, "high": 0.08},
+    "mimic_blocker": {"low": 0.02, "medium": 0.04, "high": 0.08},
+    "enkidu": {"low": 0.02, "medium": 0.04, "high": 0.08},
+}
+_HEADROOM_DEFAULT = 0.02
+_TRUE_PEAK_CEILING = 0.999
+
+
+def _headroom_for_step(step: "Step") -> float:
+    explicit = step.params.get("headroom")
+    if isinstance(explicit, (int, float)) and 0.0 < float(explicit) < 0.5:
+        return float(explicit)
+    table = _HEADROOM_BY_STRENGTH.get(step.engine, {})
+    strength = str(step.params.get("strength", "medium")).lower()
+    return float(table.get(strength, _HEADROOM_DEFAULT))
+
+
+def _prepare_headroom(buffer: AudioBuffer, step: "Step") -> tuple[AudioBuffer, dict[str, float] | None]:
+    """Attenuate a *temporary working copy* enough for the perturbation.
+
+    Originals are never touched: the returned buffer is a new object.  The
+    caller keeps the original input for quality/provenance reporting.
+    """
+    if step.action != "perturb":
+        return buffer, None
+    headroom = _headroom_for_step(step)
+    ceiling = 1.0 - headroom
+    peak = buffer.peak
+    if peak <= ceiling or peak <= 0.0:
+        return buffer, None
+    gain = ceiling / peak
+    out = buffer.copy()
+    out.samples = np.ascontiguousarray(out.samples * np.float32(gain), dtype=np.float32)
+    gain_db = 20.0 * float(np.log10(gain))
+    out.notes.append(
+        f"auto headroom: attenuated input by {gain_db:.2f} dB to leave {headroom:.3f} for {step.engine}"
+    )
+    return out, {"gain_db": round(gain_db, 3), "ceiling": round(ceiling, 4), "required_headroom": headroom}
 
 
 @dataclass
@@ -423,12 +471,35 @@ def run_job(
                         current_file = None
                     assert current_buffer is not None
                     before = current_buffer
+                    working, headroom_info = _prepare_headroom(current_buffer, step)
+                    if headroom_info is not None:
+                        warnings.append(
+                            f"{step.engine}: input attenuated by {headroom_info['gain_db']:.2f} dB "
+                            f"(auto headroom for perturbation)"
+                        )
                     output_buffer, record = engine.execute(
-                        step.action, current_buffer, dict(step.params), ectx
+                        step.action, working, dict(step.params), ectx
                     )
                     if not isinstance(output_buffer, AudioBuffer):
                         raise PipelineError(
                             f"Engine '{step.engine}' returned no audio buffer for '{step.action}'"
+                        )
+                    try:
+                        true_peak = _true_peak(output_buffer.samples)
+                    except Exception:
+                        true_peak = None
+                    if true_peak is not None and true_peak > _TRUE_PEAK_CEILING:
+                        scale = _TRUE_PEAK_CEILING / true_peak
+                        output_buffer = output_buffer.copy()
+                        output_buffer.samples = np.ascontiguousarray(
+                            output_buffer.samples * np.float32(scale), dtype=np.float32
+                        )
+                        output_buffer.notes.append(
+                            f"true-peak safety: output attenuated by {20.0 * float(np.log10(scale)):.2f} dB"
+                        )
+                        warnings.append(
+                            f"{step.engine}: final true peak exceeded 0 dBTP; output attenuated "
+                            f"by {20.0 * float(np.log10(scale)):.2f} dB"
                         )
                     current_buffer = output_buffer
                     transforms_executed = True

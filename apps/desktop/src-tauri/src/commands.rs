@@ -6,6 +6,7 @@
 //! - il motore viene preparato (launch risolto) prima di ogni chiamata RPC.
 
 use crate::error::{NlError, NlResult};
+use crate::hardware::{self, HardwareInfo};
 use crate::hostconfig::HostConfig;
 use crate::paths::{self, HostPaths, PythonResolution};
 use crate::rpc::{timeout_for, EngineManager};
@@ -130,6 +131,35 @@ pub struct LogsRequest {
 }
 
 #[tauri::command]
+pub async fn open_engine_log(state: State<'_, AppCtx>) -> NlResult<Value> {
+    let ctx = state.inner();
+    let data_dir = ctx
+        .config_path
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| NlError::new("LOG_DIR_MISSING", "Cartella dati non risolta."))?;
+    let logs_dir = data_dir.join("logs");
+    std::fs::create_dir_all(&logs_dir)?;
+    let path = logs_dir.join("engine-console.log");
+    let lines = ctx.engine.logs(2000).await;
+    let mut content = String::new();
+    content.push_str(&format!(
+        "# NL VO Shield — snapshot console motore {}\n",
+        chrono::Utc::now().to_rfc3339()
+    ));
+    for entry in &lines {
+        content.push_str(&format!("{} [{}] {}\n", entry.ts, entry.level, entry.line));
+    }
+    std::fs::write(&path, content)?;
+    let opened = ctx
+        .app
+        .opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .is_ok();
+    Ok(json!({ "opened": opened, "path": path, "lines": lines.len() }))
+}
+
+#[tauri::command]
 pub async fn engine_logs(
     state: State<'_, AppCtx>,
     request: LogsRequest,
@@ -164,6 +194,8 @@ pub struct HostInfo {
     pub language: String,
     pub theme: String,
     pub updater: UpdaterStatus,
+    /// CPU/RAM/GPU reali: base per la sezione "Protezioni consigliate" (sola lettura).
+    pub hardware: HardwareInfo,
 }
 
 #[tauri::command]
@@ -198,6 +230,7 @@ pub async fn host_info(state: State<'_, AppCtx>) -> NlResult<HostInfo> {
                     .to_string(),
             ),
         },
+        hardware: hardware::detect().clone(),
     })
 }
 
@@ -1318,4 +1351,212 @@ pub async fn check_updates(
         config.save(&ctx.config_path)?;
     }
     Ok(info)
+}
+
+/* ------------------------------- laboratorio ------------------------------ */
+/* Bridge verso il contratto engine-core: lab.* (Qwen3-TTS + Whisper).
+   Il backend può non essere ancora presente: l'errore RPC METHOD_NOT_FOUND
+   viene restituito alla UI come motivazione reale, mai come "non disponibile". */
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LabInstallModelRequest {
+    pub id: String,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub local_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LabModelIdRequest {
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LabInstallWhisperRequest {
+    pub model: String,
+    #[serde(default)]
+    pub local_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LabWhisperRequest {
+    pub model: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LabTranscribeRequest {
+    pub audio: String,
+    pub model: String,
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LabRunRequest {
+    pub original: String,
+    pub protected: String,
+    pub model_id: String,
+    pub text: String,
+    #[serde(default)]
+    pub ref_text: Option<String>,
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub seed: Option<i64>,
+    #[serde(default)]
+    pub device: Option<String>,
+    #[serde(default)]
+    pub output_dir: Option<String>,
+}
+
+#[cfg(windows)]
+fn disk_free_bytes(path: &str) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetDiskFreeSpaceExW(
+            directory: *const u16,
+            free_to_caller: *mut u64,
+            total: *mut u64,
+            total_free: *mut u64,
+        ) -> i32;
+    }
+    let wide: Vec<u16> = std::ffi::OsStr::new(path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut free = 0u64;
+    let mut total = 0u64;
+    let mut total_free = 0u64;
+    let ok = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, &mut total, &mut total_free) };
+    if ok != 0 {
+        Some(free)
+    } else {
+        None
+    }
+}
+
+#[cfg(not(windows))]
+fn disk_free_bytes(_path: &str) -> Option<u64> {
+    None
+}
+
+#[tauri::command]
+pub async fn lab_status(state: State<'_, AppCtx>) -> NlResult<Value> {
+    let mut value = rpc(state.inner(), "lab.status", json!({})).await?;
+    let probe = value
+        .pointer("/lab/paths/models_dir")
+        .and_then(Value::as_str)
+        .or_else(|| value.pointer("/lab/paths/data_dir").and_then(Value::as_str))
+        .map(str::to_string);
+    if let Some(free) = probe.and_then(|path| disk_free_bytes(&path)) {
+        if let Some(lab) = value.get_mut("lab").and_then(Value::as_object_mut) {
+            lab.insert("free_bytes".to_string(), json!(free));
+        }
+    }
+    Ok(value)
+}
+
+#[tauri::command]
+pub async fn lab_verify(state: State<'_, AppCtx>, deep: Option<bool>) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "lab.verify",
+        json!({ "deep": deep.unwrap_or(false) }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn lab_install_model(
+    state: State<'_, AppCtx>,
+    request: LabInstallModelRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "lab.install_model",
+        json!({
+            "id": request.id,
+            "source": request.source.unwrap_or_else(|| "download".to_string()),
+            "local_path": request.local_path,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn lab_uninstall_model(
+    state: State<'_, AppCtx>,
+    request: LabModelIdRequest,
+) -> NlResult<Value> {
+    rpc(state.inner(), "lab.uninstall_model", json!({ "id": request.id })).await
+}
+
+#[tauri::command]
+pub async fn lab_install_whisper(
+    state: State<'_, AppCtx>,
+    request: LabInstallWhisperRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "lab.install_whisper",
+        json!({
+            "size": request.model,
+            "local_path": request.local_path,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn lab_uninstall_whisper(
+    state: State<'_, AppCtx>,
+    request: LabWhisperRequest,
+) -> NlResult<Value> {
+    rpc(state.inner(), "lab.uninstall_whisper", json!({ "model": request.model })).await
+}
+
+#[tauri::command]
+pub async fn lab_transcribe(
+    state: State<'_, AppCtx>,
+    request: LabTranscribeRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "lab.transcribe",
+        json!({
+            "audio": request.audio,
+            "model": request.model,
+            "language": request.language.unwrap_or_else(|| "it".to_string()),
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn lab_run(
+    state: State<'_, AppCtx>,
+    request: LabRunRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "lab.run",
+        json!({
+            "original": request.original,
+            "protected": request.protected,
+            "model_id": request.model_id,
+            "text": request.text,
+            "ref_text": request.ref_text.unwrap_or_default(),
+            "language": request.language.unwrap_or_else(|| "Italian".to_string()),
+            "seed": request.seed.unwrap_or(0),
+            "device": request.device.unwrap_or_else(|| "cpu".to_string()),
+            "output_dir": request.output_dir,
+        }),
+    )
+    .await
 }

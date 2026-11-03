@@ -8,6 +8,7 @@
 
 mod commands;
 mod error;
+mod hardware;
 mod hostconfig;
 mod paths;
 mod rpc;
@@ -66,6 +67,7 @@ pub fn run() {
             commands::engine_health,
             commands::engine_restart,
             commands::engine_logs,
+            commands::open_engine_log,
             commands::host_info,
             commands::list_engines,
             commands::engine_install_hint,
@@ -102,6 +104,14 @@ pub fn run() {
             commands::get_model_settings,
             commands::set_model_settings,
             commands::check_updates,
+            commands::lab_status,
+            commands::lab_install_model,
+            commands::lab_uninstall_model,
+            commands::lab_install_whisper,
+            commands::lab_uninstall_whisper,
+            commands::lab_transcribe,
+            commands::lab_run,
+            commands::lab_verify,
         ])
         .build(tauri::generate_context!())
         .expect("errore durante l'avvio di NL VO Shield");
