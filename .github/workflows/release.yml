@@ -166,6 +166,9 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           cd release-assets
+          # Some build jobs also upload a checksum file; remove it before
+          # regenerating so the release action never tries to update a duplicate.
+          rm -f SHA256SUMS latest.json
           find . -type f ! -name 'latest.json' ! -name 'SHA256SUMS' -print0 \
             | sort -z | xargs -0 sha256sum > SHA256SUMS || true
           cat SHA256SUMS || true
