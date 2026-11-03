@@ -1243,6 +1243,54 @@ fn cache_is_fresh(last_check: Option<&str>) -> bool {
     age.num_hours() < 24
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AiInstallRequest {
+    pub variant: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiUninstallRequest {
+    #[serde(default)]
+    pub remove_models: bool,
+}
+
+#[tauri::command]
+pub async fn ai_status(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "ai.status", json!({})).await
+}
+
+#[tauri::command]
+pub async fn ai_install(
+    state: State<'_, AppCtx>,
+    request: AiInstallRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "ai.install",
+        json!({ "variant": request.variant, "confirmed": true }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn ai_uninstall(
+    state: State<'_, AppCtx>,
+    request: AiUninstallRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "ai.uninstall",
+        json!({ "remove_models": request.remove_models, "confirmed": true }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn ai_verify(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "ai.verify", json!({})).await
+}
+
 #[tauri::command]
 pub async fn check_updates(
     state: State<'_, AppCtx>,

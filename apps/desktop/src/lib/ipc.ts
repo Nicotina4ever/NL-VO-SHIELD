@@ -191,3 +191,56 @@ export const modelsApi = {
 export const updatesApi = {
   check: (force = false) => call<UpdateInfo>("check_updates", { request: { force } }),
 };
+
+export interface AiVariant {
+  id: "cpu" | "gpu";
+  label: string;
+  available: boolean;
+  description: string;
+  expected_download_bytes: number;
+  device: string;
+}
+
+export interface AiRuntimeStatus {
+  id: string;
+  name: string;
+  version: string;
+  installed: boolean;
+  state: "not_installed" | "available" | "error" | string;
+  path: string;
+  python: string | null;
+  bootstrap_python: string | null;
+  variant: string | null;
+  device: string | null;
+  size_bytes: number;
+  installed_at: string | null;
+  error: string | null;
+  expected_download_bytes: number | null;
+  variants: AiVariant[];
+  gpu: { available: boolean; name: string | null };
+  models_ready: boolean;
+}
+
+export interface AiJobStatus {
+  job_id: string;
+  state?: "queued" | "running" | "completed" | "failed" | "cancelled" | string;
+  status?: "queued" | "running" | "completed" | "failed" | "cancelled" | string;
+  progress?: { pct?: number | null; message?: string; downloaded?: number; total?: number | null } | null;
+  result?: unknown;
+  error?: { code?: string; message?: string } | null;
+}
+
+export const aiApi = {
+  status: () => call<{ runtime: AiRuntimeStatus }>("ai_status"),
+  install: (variant: "cpu" | "gpu") =>
+    call<{ job_id: string; variant: string }>("ai_install", { request: { variant } }),
+  uninstall: (removeModels = false) =>
+    call<{ ok: boolean; freed_bytes: number; removed_models: string[]; runtime_removed: boolean }>(
+      "ai_uninstall",
+      { request: { removeModels } },
+    ),
+  verify: () => call<{ ok: boolean; message?: string; confidence?: number }>("ai_verify"),
+  jobStatus: (jobId: string) => call<AiJobStatus>("job_status", { request: { jobId } }),
+  cancelJob: (jobId: string) => call<{ cancelled: boolean }>("cancel_job", { request: { jobId } }),
+};
+

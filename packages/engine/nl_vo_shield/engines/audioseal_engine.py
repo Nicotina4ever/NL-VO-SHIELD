@@ -18,7 +18,8 @@ from typing import Any
 import numpy as np
 
 from .. import __version__
-from ..audio_io import AudioBuffer, fit_length, resample_buffer
+from ..ai_runtime import AIRuntime
+from ..audio_io import AudioBuffer, fit_length, load_audio, resample_buffer, write_temp_wav
 from ..errors import EngineExecutionError, EngineUnavailable
 from .base import BaseEngine, EngineContext
 
@@ -79,21 +80,114 @@ class AudioSealEngine(BaseEngine):
 
     # ------------------------------------------------------------------ status
     def availability(self) -> tuple[bool, str | None]:
-        if not _has_module("torch"):
-            return False, (
-                "torch is not installed in the engine runtime; install the optional AI stack "
-                "(requirements-optional.txt) to enable AudioSeal. AudioSeal weights are then "
-                "downloaded only on explicit request (models download); no silent download happens."
-            )
-        if not _has_module("audioseal"):
-            return False, (
-                "audioseal package is not installed; install requirements-optional.txt to enable "
-                "AudioSeal (the base release does not include it)."
-            )
         ready, reason = self._models().is_ready("audioseal")
-        if not ready:
-            return False, reason
-        return True, None
+        in_process = _has_module("torch") and _has_module("audioseal")
+        if in_process:
+            if not ready:
+                return False, reason
+            return True, None
+        runtime = AIRuntime(self.context.data_dir, self._models())
+        if runtime.installed():
+            if not ready:
+                return False, reason
+            return True, None
+        return False, (
+            "AudioSeal non è installato. Apri Motori / Gestisci modelli e premi Installa "
+            "sul componente Runtime AI (AudioSeal): l'app prepara un ambiente Python isolato "
+            "dentro la cartella dati e scarica solo su tua conferma. Nessun download automatico, "
+            "nessun Python di sistema."
+        )
+
+    def _runtime(self) -> AIRuntime:
+        return AIRuntime(self.context.data_dir, self._models())
+
+    def _runtime_mode(self) -> bool:
+        if _has_module("torch") and _has_module("audioseal"):
+            return False
+        return self._runtime().installed()
+
+    def _runtime_embed(self, buffer: AudioBuffer, payload: int, ctx: EngineContext):
+        runtime = self._runtime()
+        generator, detector = runtime.model_paths()
+        if generator is None or detector is None:
+            raise EngineUnavailable("Checkpoint AudioSeal mancanti nel runtime AI")
+        work = ctx.work_dir or (self.context.data_dir / "tmp")
+        source = write_temp_wav(buffer, work, "audioseal-runtime-in.wav", subtype="PCM_24")
+        target = source.with_name("audioseal-runtime-out.wav")
+        subtype = buffer.source_subtype if (buffer.source_subtype or "").startswith("PCM") else "PCM_24"
+        ctx.emit("audioseal", 10, "AudioSeal runtime: elaborazione isolata")
+        payload_hex = f"{payload:04x}"
+        try:
+            result = runtime.run_worker(
+                [
+                    "embed",
+                    "--input", str(source),
+                    "--output", str(target),
+                    "--generator", str(generator),
+                    "--detector", str(detector),
+                    "--payload", payload_hex,
+                    "--subtype", subtype,
+                ]
+            )
+        except RuntimeError as exc:
+            raise EngineExecutionError(f"AudioSeal runtime: {exc}") from exc
+        if not result.get("ok") or not target.is_file():
+            raise EngineExecutionError("AudioSeal runtime non ha prodotto il file protetto")
+        output, _info = load_audio(target)
+        output.notes.append(
+            "AudioSeal eseguito dal runtime AI isolato (Python embedded nella cartella dati)."
+        )
+        ctx.emit("audioseal", 85, "watermark applicato; verifica")
+        record = {
+            "engine": self.id,
+            "action": "embed",
+            "version": self.version,
+            "params": {
+                "payload_16bit": payload,
+                "payload_hex": payload_hex,
+                "runtime": "embedded-ai-venv",
+            },
+            "detail": {
+                "channels": buffer.channels,
+                "sample_rate": buffer.sample_rate,
+                "execution": "ai-runtime",
+                "runtime_python": str(runtime.python),
+                "worker": str(runtime.worker),
+            },
+        }
+        return output, record
+
+    def _runtime_detect(self, buffer: AudioBuffer, ctx: EngineContext) -> dict[str, Any]:
+        runtime = self._runtime()
+        generator, detector = runtime.model_paths()
+        if generator is None or detector is None:
+            return {"engine": self.id, "detected": False, "confidence": 0.0, "available": False,
+                    "reason": "checkpoint AudioSeal mancanti"}
+        work = ctx.work_dir or (self.context.data_dir / "tmp")
+        source = write_temp_wav(buffer, work, "audioseal-runtime-detect.wav", subtype="PCM_24")
+        threshold = float(ctx.settings.get("watermark_threshold", 0.5))
+        ctx.emit("audioseal", 15, "AudioSeal runtime: rilevamento isolato")
+        try:
+            result = runtime.run_worker(
+                [
+                    "detect",
+                    "--input", str(source),
+                    "--generator", str(generator),
+                    "--detector", str(detector),
+                    "--threshold", str(threshold),
+                ]
+            )
+        except RuntimeError as exc:
+            return {
+                "engine": self.id,
+                "detected": False,
+                "confidence": 0.0,
+                "available": True,
+                "error": str(exc),
+            }
+        result.pop("ok", None)
+        result.update({"engine": self.id, "bits": 16, "execution": "ai-runtime"})
+        return result
 
     def _models(self):
         return self.context.models
@@ -177,6 +271,8 @@ class AudioSealEngine(BaseEngine):
             raise EngineExecutionError("AudioSeal embed requires a 16-bit payload")
         payload = int(ctx.payload) & 0xFFFF
         ctx.check_cancel()
+        if self._runtime_mode():
+            return self._runtime_embed(buffer, payload, ctx)
         ctx.emit("audioseal", 5, "loading AudioSeal generator")
         generator = self._load("generator")
         bits = self._bits(payload)
@@ -290,6 +386,8 @@ class AudioSealEngine(BaseEngine):
                 "available": False,
                 "reason": reason,
             }
+        if self._runtime_mode():
+            return self._runtime_detect(buffer, ctx)
         detector = self._load("detector")
         import torch
 
@@ -389,3 +487,4 @@ class AudioSealEngine(BaseEngine):
             return str(generator.parent)
         except Exception:
             return None
+

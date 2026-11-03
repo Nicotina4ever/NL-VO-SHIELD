@@ -185,6 +185,16 @@ BASE_REQ="$ENGINE_SRC/requirements.txt"
 OPTIONAL_REQ="$ENGINE_SRC/requirements-optional.txt"
 SITE_ROOT=""
 
+# ---------------------------------------------------- embedded bootstrap Python
+# Required by the optional AI runtime manager: always inside the installation,
+# never the system Python. Includes get-pip.py so the manager can prepare pip in
+# an isolated venv without any external interpreter.
+log STEP 'step 1c/6 - bundling embedded bootstrap Python + get-pip.py'
+bash "$ROOT/tooling/prepare-bootstrap-python.sh" "$ENGINE_DIR/bootstrap"
+[ -x "$ENGINE_DIR/bootstrap/python/bin/python3" ] || fail 'embedded bootstrap Python missing after preparation' 2
+[ -f "$ENGINE_DIR/bootstrap/get-pip.py" ] || fail 'embedded get-pip.py missing after preparation' 2
+log OK "embedded bootstrap Python bundled ($(du -sh "$ENGINE_DIR/bootstrap" | awk '{print $1}'))"
+
 # ------------------------------------------------------------------- runtime
 if [ "$SKIP_RUNTIME" -eq 0 ]; then
   log STEP 'step 2/6 - bundling portable Python runtime + app into engine/runtime'

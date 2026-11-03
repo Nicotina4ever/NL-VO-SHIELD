@@ -225,6 +225,10 @@ class RpcServer:
             "models.download": self._models_download,
             "models.delete": self._models_delete,
             "models.prune": self._models_prune,
+            "ai.status": self._ai_status,
+            "ai.install": self._ai_install,
+            "ai.uninstall": self._ai_uninstall,
+            "ai.verify": self._ai_verify,
             "cache.size": self._cache_size,
             "cache.clear": self._cache_clear,
             "open_path": self._open_path,
@@ -550,6 +554,58 @@ class RpcServer:
 
     def _models_prune(self, params: dict[str, Any]) -> dict[str, Any]:
         return self.ctx.models.prune()
+
+    # ------------------------------------------------------------------ AI runtime
+    def _ai_runtime(self):
+        from .ai_runtime import AIRuntime
+
+        return AIRuntime(self.ctx.data_dir, self.ctx.models)
+
+    def _ai_status(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"runtime": self._ai_runtime().status()}
+
+    def _ai_install(self, params: dict[str, Any]) -> dict[str, Any]:
+        variant = str(params.get("variant") or "cpu").lower()
+        if variant not in ("cpu", "gpu"):
+            raise RpcError(INVALID_PARAMS, "variant must be 'cpu' or 'gpu'")
+        if not params.get("confirmed"):
+            raise RpcError(
+                INVALID_PARAMS,
+                "ai.install requires confirmed=true: AI runtime downloads are always explicit",
+                {"variant": variant, "requires_confirmation": True},
+            )
+        runtime = self._ai_runtime()
+        job_id = full_id()
+
+        def runner(emit: Callable[..., None], cancel: threading.Event) -> dict[str, Any]:
+            def progress(pct: int | None, message: str, downloaded: int, total: int | None) -> None:
+                emit(pct, message, downloaded=downloaded, total=total)
+
+            return runtime.install(variant, progress=progress, cancel=cancel)
+
+        started = self.jobs.start(
+            "ai.install",
+            runner,
+            job_id=job_id,
+            progress_method="ai.progress",
+            finished_method="ai.finished",
+            failed_method="ai.failed",
+            extra={"variant": variant},
+        )
+        return {**started, "variant": variant}
+
+    def _ai_uninstall(self, params: dict[str, Any]) -> dict[str, Any]:
+        if not params.get("confirmed"):
+            raise RpcError(
+                INVALID_PARAMS,
+                "ai.uninstall requires confirmed=true",
+                {"requires_confirmation": True},
+            )
+        remove_models = bool(params.get("remove_models", False))
+        return self._ai_runtime().uninstall(remove_models=remove_models)
+
+    def _ai_verify(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._ai_runtime().verify()
 
     def _cache_size(self, params: dict[str, Any]) -> dict[str, Any]:
         return self.ctx.cache.size()

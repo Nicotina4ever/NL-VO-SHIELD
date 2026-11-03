@@ -248,6 +248,21 @@ $baseReq = Join-Path $engineSrc 'requirements.txt'
 $optionalReq = Join-Path $engineSrc 'requirements-optional.txt'
 $siteRoot = $null
 
+# ---------------------------------------------------- embedded bootstrap Python
+# Required by the optional AI runtime manager: always inside the installation,
+# never the system Python. Includes get-pip.py so the manager can prepare pip in
+# an isolated venv without any external interpreter.
+Write-Log STEP 'step 1c/6 - bundling embedded bootstrap Python + get-pip.py'
+$bootstrapDir = Join-Path $engineDir 'bootstrap'
+& (Join-Path $PSScriptRoot 'prepare-bootstrap-python.ps1') -Destination $bootstrapDir | Out-Host
+if (-not (Test-Path -LiteralPath (Join-Path $bootstrapDir 'python\python.exe'))) {
+  Fail 'embedded bootstrap Python missing after preparation' 2
+}
+if (-not (Test-Path -LiteralPath (Join-Path $bootstrapDir 'get-pip.py'))) {
+  Fail 'embedded get-pip.py missing after preparation' 2
+}
+Write-Log OK "embedded bootstrap Python bundled ($([math]::Round((Get-ChildItem $bootstrapDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)) MB)"
+
 # ------------------------------------------------------------- runtime copy
 if (-not $SkipRuntime) {
   Write-Log STEP 'step 2/6 - bundling portable Python runtime + app into engine/runtime'

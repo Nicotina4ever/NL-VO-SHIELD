@@ -13,7 +13,8 @@
     checkUpdates,
     setModelDownloading,
   } from "../engine.svelte";
-  import { modelsApi, engineApi } from "../ipc";
+  import { modelsApi, aiApi, engineApi, type AiRuntimeStatus, type AiJobStatus } from "../ipc";
+  import { onDestroy } from "svelte";
   import { ui, toast, setLanguage as setUiLanguage, setTheme as setUiTheme } from "../ui.svelte";
   import { i18n } from "../i18n.svelte";
   import { pickDirectory } from "../dialogs";
@@ -38,6 +39,113 @@
   let checkingUpdates = $state(false);
   let pendingClearCache = $state(false);
   let pendingDelete = $state(false);
+
+  let aiRuntime = $state<AiRuntimeStatus | null>(null);
+  let aiVariant = $state<"cpu" | "gpu">("cpu");
+  let aiBusy = $state(false);
+  let aiJobId = $state<string | null>(null);
+  let aiJob = $state<AiJobStatus | null>(null);
+  let aiError = $state<string | null>(null);
+  let aiRemoveModels = $state(true);
+  let aiPoll: ReturnType<typeof setInterval> | null = null;
+
+  async function loadAi(): Promise<void> {
+    try {
+      const response = await aiApi.status();
+      aiRuntime = response.runtime;
+      const selected = aiRuntime.variants.find((item) => item.id === aiVariant);
+      if (!selected?.available) aiVariant = "cpu";
+    } catch (err) {
+      aiError = hostErrorMessage(err as { code?: string; message?: string });
+    }
+  }
+
+  function stopAiPoll(): void {
+    if (aiPoll) clearInterval(aiPoll);
+    aiPoll = null;
+  }
+
+  async function pollAi(jobId: string): Promise<void> {
+    stopAiPoll();
+    aiPoll = setInterval(() => {
+      void (async () => {
+        try {
+          const status = await aiApi.jobStatus(jobId);
+          aiJob = status;
+          const state = status.state ?? status.status ?? "";
+          if (["completed", "failed", "cancelled"].includes(state)) {
+            stopAiPoll();
+            aiBusy = false;
+            aiJobId = null;
+            if (state === "failed") {
+              aiError = status.error?.message ?? t("settings.aiInstallFailed");
+            }
+            await loadAi();
+            await loadModels();
+            try {
+              const engines = await engineApi.listEngines();
+              engine.engines = engines.engines;
+            } catch {
+              /* engine refresh best-effort */
+            }
+          }
+        } catch (err) {
+          stopAiPoll();
+          aiBusy = false;
+          aiError = hostErrorMessage(err as { code?: string; message?: string });
+        }
+      })();
+    }, 900);
+  }
+
+  async function installAi(): Promise<void> {
+    aiError = null;
+    aiBusy = true;
+    aiJob = null;
+    try {
+      const response = await aiApi.install(aiVariant);
+      aiJobId = response.job_id;
+      await pollAi(response.job_id);
+    } catch (err) {
+      aiBusy = false;
+      aiError = hostErrorMessage(err as { code?: string; message?: string });
+    }
+  }
+
+  async function uninstallAi(): Promise<void> {
+    aiError = null;
+    try {
+      const result = await aiApi.uninstall(aiRemoveModels);
+      aiJob = null;
+      await loadAi();
+      await loadModels();
+      toast("ok", t("settings.aiRemoved"), formatBytes(result.freed_bytes));
+    } catch (err) {
+      aiError = hostErrorMessage(err as { code?: string; message?: string });
+    }
+  }
+
+  async function verifyAi(): Promise<void> {
+    aiError = null;
+    try {
+      const result = await aiApi.verify();
+      if (result.ok) toast("ok", t("settings.aiVerified"), result.confidence?.toFixed(3));
+      else aiError = result.message ?? t("settings.aiVerifyFailed");
+    } catch (err) {
+      aiError = hostErrorMessage(err as { code?: string; message?: string });
+    }
+  }
+
+  async function cancelAi(): Promise<void> {
+    if (!aiJobId) return;
+    try {
+      await aiApi.cancelJob(aiJobId);
+    } catch (err) {
+      aiError = hostErrorMessage(err as { code?: string; message?: string });
+    }
+  }
+
+  onDestroy(stopAiPoll);
 
   const host = $derived(engine.host);
   const modelSettings = $derived(engine.modelSettings);
@@ -298,6 +406,7 @@
       if (!engine.settings) await loadSettings();
       await loadModelSettings();
       await loadModels();
+      await loadAi();
       syncFromSettings();
       if (engine.settings?.host?.autoUpdateCheck) void checkUpdates(false);
     })();
@@ -426,6 +535,127 @@
       <div class="hint-box small" style="margin-top:12px">
         <strong>{t("settings.reaper")}</strong> — {t("settings.reaperHint")}
       </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head">
+      <h2>{t("settings.aiSection")}</h2>
+      <span class="spacer"></span>
+      {#if aiRuntime}
+        <Badge
+          label={aiBusy ? t("settings.aiInstalling") : aiRuntime.installed ? t("settings.aiAvailable") : t("settings.aiNotInstalled")}
+          tone={aiBusy ? "warn" : aiRuntime.installed ? "ok" : "muted"}
+        />
+      {/if}
+      <button class="btn btn--ghost btn--sm" onclick={() => void loadAi()} disabled={aiBusy}>
+        <Icon name="refresh" size={14} />
+        {t("common.refresh")}
+      </button>
+    </div>
+    <div class="card__body">
+      <p class="small muted">{t("settings.aiHint")}</p>
+      {#if aiRuntime}
+        <div class="grid grid-2" style="gap:12px;margin-top:10px">
+          <div class="field">
+            <span class="field__label">{t("settings.aiComponent")}</span>
+            <div class="mono small">{aiRuntime.name} · v{aiRuntime.version}</div>
+            <span class="field__help">
+              {t("settings.aiState")}: {aiRuntime.state}
+              · {t("common.size")}: {formatBytes(aiRuntime.size_bytes)}
+            </span>
+          </div>
+          <div class="field">
+            <span class="field__label">{t("settings.aiPython")}</span>
+            <div class="mono small break-all">
+              {aiRuntime.python ?? aiRuntime.bootstrap_python ?? t("settings.aiPythonMissing")}
+            </div>
+            <span class="field__help">{t("settings.aiPythonHint")}</span>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;gap:16px;flex-wrap:wrap">
+          {#each aiRuntime.variants as variant (variant.id)}
+            <label class="check">
+              <input
+                type="radio"
+                name="ai-runtime-variant"
+                value={variant.id}
+                bind:group={aiVariant}
+                disabled={!variant.available || aiBusy}
+              />
+              <span>
+                {variant.label}
+                <span class="small faint">({formatBytes(variant.expected_download_bytes)})</span>
+              </span>
+            </label>
+          {/each}
+        </div>
+        {#each aiRuntime.variants as variant (variant.id)}
+          {#if variant.id === aiVariant}
+            <p class="small faint">{variant.description}</p>
+          {/if}
+        {/each}
+
+        {#if !aiRuntime.bootstrap_python}
+          <div class="warn-box small" style="margin-top:10px">{t("settings.aiBootstrapMissing")}</div>
+        {/if}
+
+        {#if aiBusy}
+          <div style="margin-top:12px">
+            <ProgressBar
+              value={aiJob?.progress?.pct ?? 0}
+              label={aiJob?.progress?.message ?? t("settings.aiInstalling")}
+            />
+            <div class="row" style="margin-top:6px">
+              <span class="small faint">
+                {aiJob?.progress?.downloaded ? formatBytes(aiJob.progress.downloaded) : ""}
+                {aiJob?.progress?.total ? `/ ${formatBytes(aiJob.progress.total)}` : ""}
+              </span>
+              <span class="spacer"></span>
+              <button class="btn btn--ghost btn--sm" onclick={() => void cancelAi()}>{t("common.cancel")}</button>
+            </div>
+          </div>
+        {/if}
+
+        {#if aiError}
+          <div class="warn-box small" style="margin-top:10px">{aiError}</div>
+        {/if}
+
+        <div class="btn-row" style="margin-top:12px;flex-wrap:wrap">
+          <button
+            class="btn btn--primary btn--sm"
+            onclick={() => void installAi()}
+            disabled={aiBusy || !aiRuntime.bootstrap_python}
+          >
+            <Icon name="download" size={14} />
+            {aiRuntime.installed ? t("settings.aiUpdate") : t("settings.aiInstall")}
+          </button>
+          <button
+            class="btn btn--sm"
+            onclick={() => void verifyAi()}
+            disabled={aiBusy || !aiRuntime.installed}
+          >
+            {t("settings.aiVerify")}
+          </button>
+          <button
+            class="btn btn--danger btn--sm"
+            onclick={() => void uninstallAi()}
+            disabled={aiBusy || !aiRuntime.installed}
+          >
+            <Icon name="trash" size={14} />
+            {t("settings.aiUninstall")}
+          </button>
+          <label class="check">
+            <input type="checkbox" bind:checked={aiRemoveModels} />
+            <span>{t("settings.aiRemoveModels")}</span>
+          </label>
+          <span class="spacer"></span>
+          <span class="small faint">{t("settings.aiNoAutoDownload")}</span>
+        </div>
+      {:else}
+        <div class="empty">{t("common.loading")}</div>
+      {/if}
     </div>
   </div>
 
@@ -706,3 +936,4 @@
     <p>{t("settings.clearCacheConfirm")}</p>
   </Modal>
 {/if}
+
