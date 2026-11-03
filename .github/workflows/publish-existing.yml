@@ -39,8 +39,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
-          name: NL VO Shield ${{ inputs.tag }}
+          tag_name: v1.2.3
+          name: NL VO Shield v1.2.3
           draft: false
           prerelease: false
           generate_release_notes: true
