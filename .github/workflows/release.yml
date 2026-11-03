@@ -168,7 +168,10 @@ jobs:
           cd release-assets
           # Some build jobs also upload a checksum file; remove it before
           # regenerating so the release action never tries to update a duplicate.
-          rm -f SHA256SUMS latest.json
+          # Remove every artifact that can repeat across OS build jobs; the
+          # release action otherwise tries to update an asset that was already
+          # uploaded and fails with Not Found.
+          find release-assets -type f \( -name 'SHA256SUMS' -o -name 'BUILD-INFO.json' -o -name 'latest.json' \) -delete
           find . -type f ! -name 'latest.json' ! -name 'SHA256SUMS' -print0 \
             | sort -z | xargs -0 sha256sum > SHA256SUMS || true
           cat SHA256SUMS || true

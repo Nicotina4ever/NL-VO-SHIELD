@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nl-vo-shield-engine"
-version = "1.2.2"
+version = "1.2.3"
 description = "NL VO Shield — local-first audio protection, watermark, C2PA provenance and verification engine"
 readme = "README.md"
 requires-python = ">=3.11"

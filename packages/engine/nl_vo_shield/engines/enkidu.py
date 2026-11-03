@@ -115,6 +115,8 @@ class EnkiduEngine(BaseEngine):
             raise EngineUnavailable(reason or "Enkidu unavailable")
         assert self._directory and self._python() and self._runner() and self._ecapa()
         steps = int(params.get("steps", 10))
+        target_snr = float(params.get("target_snr_db", 20.0))
+        target_snr = max(6.0, min(40.0, target_snr))
         noise_level = float(params.get("noise_level", 0.1))
         mask_ratio = float(params.get("mask_ratio", 0.3))
         profile = str(params.get("profile") or "default")
@@ -133,6 +135,7 @@ class EnkiduEngine(BaseEngine):
             "--steps", str(steps),
             "--noise-level", str(noise_level),
             "--mask-ratio", str(mask_ratio),
+            "--target-snr-db", str(target_snr),
         ]
         proc = subprocess.run(command, capture_output=True, text=True, timeout=7200, env=dict(os.environ))
         if proc.returncode != 0 or not output.is_file():
@@ -154,7 +157,7 @@ class EnkiduEngine(BaseEngine):
         return protected, {
             "engine": self.id, "action": action, "profile": profile,
             "reused": "true" if (self._data_dir() / "profiles" / "enkidu" / profile / "noise_real.pt").exists() else "false",
-            "steps": steps, "noise_level": noise_level, "device": device,
+            "steps": steps, "noise_level": noise_level, "target_snr_db": target_snr, "device": device,
             "log": (proc.stdout or "").strip().splitlines()[-1:],
         }
 

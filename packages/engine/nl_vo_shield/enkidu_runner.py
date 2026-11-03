@@ -28,6 +28,7 @@ def main() -> int:
     parser.add_argument("--steps", type=int, default=10)
     parser.add_argument("--noise-level", type=float, default=0.1)
     parser.add_argument("--mask-ratio", type=float, default=0.3)
+    parser.add_argument("--target-snr-db", type=float, default=20.0)
     args = parser.parse_args()
 
     sys.path.insert(0, str(Path(args.enkidu_dir).resolve()))
@@ -80,10 +81,18 @@ def main() -> int:
         reused = False
 
     protected = enkidu.add_noise(waveform, noise_real, noise_imag, noise_smooth=True)
-    protected = protected.detach().cpu().numpy().reshape(-1)
+    protected = protected.detach().cpu().numpy().reshape(-1).astype(np.float32)
+    # Quality guard: scale the UFP so the final SNR does not destroy the take.
+    signal_rms = float(np.sqrt(np.mean(mono * mono))) if mono.size else 0.0
     delta = protected - mono
+    noise_rms = float(np.sqrt(np.mean(delta * delta))) if delta.size else 0.0
+    if signal_rms > 0 and noise_rms > 0:
+        max_noise = signal_rms / (10.0 ** (float(args.target_snr_db) / 20.0))
+        if noise_rms > max_noise:
+            protected = np.clip(mono + delta * (max_noise / noise_rms), -1.0, 1.0)
+            delta = protected - mono
     print(
-        f"NLVS_ENKIDU profile={args.profile} reused={reused} device={device} "
+        f"NLVS_ENKIDU profile={args.profile} reused={reused} target_snr={float(args.target_snr_db):.1f} device={device} "
         f"delta_max={float(np.abs(delta).max()):.8f} "
         f"noise_rms={float(np.sqrt(np.mean(delta * delta))):.8f}"
     )
