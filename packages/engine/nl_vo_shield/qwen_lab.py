@@ -678,13 +678,21 @@ class QwenLab:
             env.pop(key, None)
         # PyInstaller adds its own _internal directory to PATH; its DLLs must
         # not shadow the NumPy/PyTorch DLLs of the isolated venv.
-        path_parts = [str(self.python.parent)] if self.python else []
-        for part in (env.get("PATH") or "").split(os.pathsep):
-            lowered = part.lower()
-            if not part or "_internal" in lowered or "frozen" in lowered:
-                continue
-            path_parts.append(part)
-        env["PATH"] = os.pathsep.join(path_parts)
+        if os.name == "nt":
+            # A GUI/PyInstaller parent can expose its temporary DLL directory on
+            # PATH; NumPy then loads the wrong C runtime.  Give the worker only
+            # its venv plus the standard Windows directories.
+            system_root = env.get("SystemRoot") or r"C:\Windows"
+            env["PATH"] = os.pathsep.join(
+                [str(self.python.parent)] if self.python else []
+                + [system_root + r"\System32", system_root, system_root + r"\System32\Wbem"]
+            )
+        else:
+            path_parts = [str(self.python.parent)] if self.python else []
+            for part in (env.get("PATH") or "").split(os.pathsep):
+                if part:
+                    path_parts.append(part)
+            env["PATH"] = os.pathsep.join(path_parts)
         env.update(
             {
                 "HF_HOME": str(cache / "huggingface"),
@@ -827,7 +835,7 @@ class QwenLab:
             )
         self._ensure_worker()
         process = subprocess.Popen(
-            [str(python), str(self.worker), command],
+            [str(python), "-I", str(self.worker), command],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
