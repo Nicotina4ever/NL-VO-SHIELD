@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import logoUrl from "../../../assets/LogoMio.svg";
   import { t, i18n, hostErrorMessage } from "./lib/i18n.svelte";
-  import { ui, navigate, requestOpenFile, setLanguage, setTheme, setConsoleOpen, toggleConsole, toast } from "./lib/ui.svelte";
+  import { ui, navigate, requestOpenFile, setLanguage, setTheme, setViewMode, setConsoleOpen, toggleConsole, toast } from "./lib/ui.svelte";
   import {
     bootEngine,
     connect,
@@ -284,6 +284,14 @@ import Laboratorio from "./lib/pages/Laboratorio.svelte";
       >
         {ui.theme === "dark" ? "☾" : "☀"}
       </button>
+      <div class="seg" role="group" aria-label="Modalità">
+        {#each ["simple", "expert", "advanced"] as mode}
+          <button class="seg__item" class:active={ui.viewMode === mode}
+            onclick={() => setViewMode(mode as "simple" | "expert" | "advanced")}
+            aria-pressed={ui.viewMode === mode}>{t(`mode.${mode}`)}</button>
+        {/each}
+      </div>
+
     </header>
 
     <main class="content" tabindex="-1">

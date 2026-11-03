@@ -301,3 +301,20 @@ export interface ComponentInfo {
   description: string;
   actions: string[];
 }
+
+
+export interface MicromambaEnv { name: string; path: string; size_bytes: number }
+export interface MicromambaStatus {
+  version: string; installed: boolean; binary: string; root: string;
+  envs: MicromambaEnv[]; size_bytes: number; platform: string; asset: string;
+}
+export const micromambaApi = {
+  status: () => call<{ micromamba: MicromambaStatus }>("micromamba_status"),
+  install: () => call<unknown>("micromamba_install"),
+  verify: () => call<unknown>("micromamba_verify"),
+  uninstall: () => call<unknown>("micromamba_uninstall"),
+  createEnv: (name: string, python = "3.10") =>
+    call<unknown>("micromamba_create_env", { request: { name, python } }),
+  removeEnv: (name: string) =>
+    call<unknown>("micromamba_remove_env", { request: { name, python: "3.10" } }),
+};

@@ -63,8 +63,12 @@ class E2EVGuardEngine(BaseEngine):
     def _python(self) -> Path | None:
         override = os.environ.get("NLVS_E2E_PYTHON")
         candidates = [Path(override).expanduser()] if override else []
-        candidates += [self._data_dir() / "runtime" / "ai" / "venv" / "Scripts" / "python.exe",
-                       self._data_dir() / "runtime" / "ai" / "venv" / "bin" / "python3"]
+        candidates += [
+            self._data_dir() / "micromamba" / "envs" / "e2e" / "python.exe",
+            self._data_dir() / "micromamba" / "envs" / "e2e" / "bin" / "python3",
+            self._data_dir() / "runtime" / "ai" / "venv" / "Scripts" / "python.exe",
+            self._data_dir() / "runtime" / "ai" / "venv" / "bin" / "python3",
+        ]
         for candidate in candidates:
             if candidate.is_file():
                 return candidate.resolve()
@@ -99,11 +103,37 @@ class E2EVGuardEngine(BaseEngine):
         epsilon = int(params.get("epsilon", 8))
         work = Path(tempfile.mkdtemp(prefix="nlvs_e2e_", dir=str(ctx.work_dir) if ctx.work_dir else None))
         source = work / "input.wav"
-        write_audio_atomic(buffer, source, subtype="PCM_24", temp_dir=ctx.work_dir)
+        # E2E-VGuard's official single-file path expects 24 kHz mono.
+        if buffer.sample_rate != 24000 or buffer.channels != 1:
+            import numpy as np
+            from scipy.signal import resample_poly
+            mono = buffer.samples.mean(axis=1).astype(np.float32)
+            if buffer.sample_rate != 24000:
+                mono = resample_poly(mono, 24000, buffer.sample_rate).astype(np.float32)
+            import soundfile as sf
+            sf.write(source, mono, 24000, subtype="PCM_24")
+        else:
+            write_audio_atomic(buffer, source, subtype="PCM_24", temp_dir=ctx.work_dir)
         command = [str(self._python()), str(self._directory / "protect.py"),
                    "--input_wav", str(source), "--epsilon", str(epsilon), "--epochs", str(epochs)]
+        env = dict(os.environ)
+        # E2E's StyleTTS2 phonemizer needs the installed eSpeak NG library.
+        espeak = Path(r"C:\Program Files\eSpeak NG")
+        if espeak.is_dir():
+            env.setdefault("PHONEMIZER_ESPEAK_LIBRARY", str(espeak / "libespeak-ng.dll"))
+            env.setdefault("PHONEMIZER_ESPEAK_PATH", str(espeak / "espeak-ng-data"))
+        env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+        env["HF_HUB_OFFLINE"] = "0"
+        env["TRANSFORMERS_OFFLINE"] = "0"
+        env["PYTHONUTF8"] = "1"
+        if self._python() is not None:
+            envroot = self._python().parent
+            env["PATH"] = os.pathsep.join([str(envroot), str(envroot / "bin"), str(envroot / "Library" / "bin"), str(envroot / "Scripts"), env.get("PATH", "")])
+        device = str(params.get("device") or "").lower()
+        if device in ("cpu", "cuda"):
+            env["NLVS_E2E_DEVICE"] = device
         proc = subprocess.run(command, cwd=str(self._directory), capture_output=True, text=True,
-                              timeout=7200, env=dict(os.environ))
+                              timeout=7200, env=env)
         candidates = [source.with_name(source.stem + "_protected.wav"),
                       source.parent / (source.stem + "_protected.wav")]
         output = next((p for p in candidates if p.is_file()), None)

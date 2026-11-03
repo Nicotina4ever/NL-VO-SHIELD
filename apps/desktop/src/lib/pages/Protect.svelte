@@ -49,6 +49,7 @@
   let verifyAfter = $state(true);
   let payloadHex = $state("");
   let manifestTitle = $state("");
+  let engineParams = $state<Record<string, Record<string, unknown>>>({});
   let profileId = $state("");
   let advancedOpen = $state(false);
   let dragging = $state(false);
@@ -71,6 +72,7 @@
       payloadHex,
       manifestTitle,
       author: selectedProfile?.name ?? undefined,
+      engineParams,
       usageTerms: selectedProfile?.usage_terms ?? undefined,
     }),
   );
@@ -160,6 +162,14 @@
     if (presetId !== "custom") presetId = "custom";
   }
 
+  function canMove(engineId: string, direction: -1 | 1): boolean {
+    const ordered = orderedSelections();
+    const index = ordered.findIndex((selection) => selection.engine === engineId);
+    if (index < 0) return false;
+    const target = ordered[index + direction];
+    return Boolean(target && target.role === ordered[index].role);
+  }
+
   function moveSelection(engineId: string, direction: -1 | 1): void {
     const ordered = orderedSelections();
     const index = ordered.findIndex((selection) => selection.engine === engineId);
@@ -176,6 +186,11 @@
     next[currentIndex] = target;
     next[targetPos] = current;
     selections = next;
+    if (presetId !== "custom") presetId = "custom";
+  }
+
+  function setParam(engineId: string, key: string, value: unknown): void {
+    engineParams = { ...engineParams, [engineId]: { ...(engineParams[engineId] ?? {}), [key]: value } };
     if (presetId !== "custom") presetId = "custom";
   }
 
@@ -331,7 +346,7 @@
   });
 </script>
 
-<div class="page">
+<div class="page mode-{ui.viewMode}">
   <div class="page-head">
     <div class="page-head__text">
       <h1>{t("protect.title")}</h1>
@@ -448,7 +463,7 @@
           <p class="small muted" style="margin:4px 0 10px">{t("protect.chainOrderHint")}</p>
 
           <div class="col" style="gap:6px">
-            {#each orderedSelections() as selection, index (selection.engine)}
+            {#each orderedSelections() as selection (selection.engine)}
               {@const info = engine.engines.find((item) => item.id === selection.engine)}
               <div class="list-row">
                 <input
@@ -477,7 +492,7 @@
                   <button
                     class="btn btn--ghost btn--sm"
                     onclick={() => moveSelection(selection.engine, -1)}
-                    disabled={index === 0}
+                    disabled={!canMove(selection.engine, -1)}
                     title={t("protect.moveUp")}
                     aria-label={t("protect.moveUp")}
                   >
@@ -486,7 +501,7 @@
                   <button
                     class="btn btn--ghost btn--sm"
                     onclick={() => moveSelection(selection.engine, 1)}
-                    disabled={index === orderedSelections().length - 1}
+                    disabled={!canMove(selection.engine, 1)}
                     title={t("protect.moveDown")}
                     aria-label={t("protect.moveDown")}
                   >
@@ -552,7 +567,7 @@
             </div>
           {/if}
 
-          <div class="grid grid-2" style="gap:12px;margin-top:14px">
+          <div class="grid grid-2 expert-only" style="gap:12px;margin-top:14px">
             <div class="field">
               <label for="protect-strength">{t("protect.strength")}</label>
               <select
@@ -586,6 +601,7 @@
             </span>
           </label>
 
+          {#if ui.viewMode === "advanced"}
           <button
             class="btn btn--ghost btn--sm"
             style="align-self:flex-start;margin-top:8px"
@@ -595,8 +611,9 @@
             <Icon name="settings" size={14} />
             {t("protect.advancedOptions")}
           </button>
+          {/if}
 
-          {#if advancedOpen}
+          {#if advancedOpen && ui.viewMode === "advanced"}
             <div class="grid grid-2" style="gap:12px;margin-top:10px">
               <div class="field">
                 <label for="protect-payload">{t("protect.payloadHex")}</label>
@@ -613,6 +630,36 @@
                 <label for="protect-title">{t("protect.manifestTitle")}</label>
                 <input id="protect-title" class="input" bind:value={manifestTitle} />
                 <span class="field__help">{t("protect.manifestTitleHint")}</span>
+              </div>
+            </div>
+          {/if}
+
+          {#if ui.viewMode === "advanced" && selections.some((s) => s.role === "anti_clone")}
+            <div class="card" style="margin-top:12px">
+              <div class="card__head"><h2>{t("protect.advancedOptions")}</h2></div>
+              <div class="card__body col" style="gap:10px">
+                {#each selections.filter((s) => s.role === "anti_clone") as sel (sel.engine)}
+                  {@const p = engineParams[sel.engine] ?? {}}
+                  <div class="field">
+                    <span class="field__label">{sel.engine}</span>
+                    <div class="row gap-sm" style="flex-wrap:wrap">
+                      {#if sel.engine === "safespeech" || sel.engine === "e2e_vguard"}
+                        <label class="small">epochs <input class="input" type="number" min="1" max="500" value={String(p.epochs ?? 10)} oninput={(e) => setParam(sel.engine, "epochs", Number(e.currentTarget.value))} /></label>
+                        <label class="small">epsilon <input class="input" type="number" min="1" max="64" value={String(p.epsilon ?? 8)} oninput={(e) => setParam(sel.engine, "epsilon", Number(e.currentTarget.value))} /></label>
+                      {/if}
+                      {#if sel.engine === "mimic_blocker" || sel.engine === "enkidu"}
+                        <label class="small">target SNR dB <input class="input" type="number" min="6" max="40" value={String(p.target_snr_db ?? 20)} oninput={(e) => setParam(sel.engine, "target_snr_db", Number(e.currentTarget.value))} /></label>
+                      {/if}
+                      {#if sel.engine === "mimic_blocker"}
+                        <label class="small">mix <input class="input" type="number" min="0" max="1" step="0.05" value={String(p.mix ?? 0.5)} oninput={(e) => setParam(sel.engine, "mix", Number(e.currentTarget.value))} /></label>
+                      {/if}
+                      {#if sel.engine === "enkidu"}
+                        <label class="small">steps <input class="input" type="number" min="1" max="100" value={String(p.steps ?? 10)} oninput={(e) => setParam(sel.engine, "steps", Number(e.currentTarget.value))} /></label>
+                        <label class="small">noise <input class="input" type="number" min="0" max="0.5" step="0.01" value={String(p.noise_level ?? 0.1)} oninput={(e) => setParam(sel.engine, "noise_level", Number(e.currentTarget.value))} /></label>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
               </div>
             </div>
           {/if}
@@ -777,3 +824,4 @@
     </div>
   </div>
 </div>
+

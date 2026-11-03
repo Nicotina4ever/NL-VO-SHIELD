@@ -15,6 +15,7 @@ export type Page =
   | "about";
 
 export type Theme = "dark" | "light";
+export type ViewMode = "simple" | "expert" | "advanced";
 export type ToastKind = "info" | "ok" | "warn" | "err";
 
 export interface Toast {
@@ -32,6 +33,7 @@ const TOAST_TTL = 7000;
 export const ui = $state({
   page: "dashboard" as Page,
   theme: "dark" as Theme,
+  viewMode: "simple" as ViewMode,
   booted: false,
   toasts: [] as Toast[],
   /** Incrementato per chiedere alla pagina Proteggi/Batch di aprire il selettore file. */
@@ -52,6 +54,12 @@ export const ui = $state({
 });
 
 let toastSeq = 0;
+const MODE_KEY = "nlvs.viewMode";
+
+export function setViewMode(mode: ViewMode): void {
+  ui.viewMode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); } catch { /* non browser */ }
+}
 
 export function toast(kind: ToastKind, message: string, title?: string): number {
   const id = ++toastSeq;
@@ -130,14 +138,17 @@ export function initUi(): void {
   let storedTheme: string | null = null;
   let storedLang: string | null = null;
   let storedConsole: string | null = null;
+  let storedMode: string | null = null;
   try {
     storedTheme = localStorage.getItem(THEME_KEY);
     storedLang = localStorage.getItem(LANG_KEY);
     storedConsole = localStorage.getItem(CONSOLE_KEY);
+    storedMode = localStorage.getItem(MODE_KEY);
   } catch {
     /* ignore */
   }
   ui.consoleOpen = storedConsole === "1";
+  if (storedMode === "simple" || storedMode === "expert" || storedMode === "advanced") ui.viewMode = storedMode;
   const theme: Theme = isTheme(storedTheme) ? storedTheme : "dark";
   const lang: Lang = isLang(storedLang) ? storedLang : i18n.lang;
   setTheme(theme);

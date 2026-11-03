@@ -1782,3 +1782,5 @@ textarea {
     left: 60px;
   }
 }
+.mode-simple .expert-only { display: none !important; }
+

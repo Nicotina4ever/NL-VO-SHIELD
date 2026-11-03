@@ -51,17 +51,19 @@ export function paramsForEngine(
     manifestTitle?: string;
     author?: string;
     usageTerms?: string;
+    engineParams?: Record<string, Record<string, unknown>>;
   },
 ): Record<string, unknown> {
+  const extra = options.engineParams?.[_engine] ?? {};
   if (role === "anti_clone") {
     // Il motore accetta low/medium/high (non "light").
-    return { strength: ENGINE_STRENGTH[options.strength] };
+    return { strength: ENGINE_STRENGTH[options.strength], ...extra };
   }
   if (role === "watermark") {
     const params: Record<string, unknown> = { sample_rate: 16000 };
     const payload = (options.payloadHex ?? "").trim();
     if (payload) params.payload_hex = payload;
-    return params;
+    return { ...params, ...extra };
   }
   const manifest: Record<string, unknown> = {
     title: options.manifestTitle?.trim() || undefined,
@@ -73,7 +75,7 @@ export function paramsForEngine(
   for (const key of Object.keys(manifest)) {
     if (manifest[key] === undefined) delete manifest[key];
   }
-  return { manifest, cert: "auto" };
+  return { manifest, cert: "auto", ...extra };
 }
 
 /** Catena nell'ordine consigliato dal contratto, solo con i motori selezionati. */
@@ -85,6 +87,7 @@ export function buildChain(
     manifestTitle?: string;
     author?: string;
     usageTerms?: string;
+    engineParams?: Record<string, Record<string, unknown>>;
   },
 ): ChainStep[] {
   // Raggruppa per ruolo (anti-clone → watermark → provenance) mantenendo

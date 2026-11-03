@@ -241,6 +241,12 @@ class RpcServer:
             "lab.verify": self._lab_verify,
             "components.list": self._components_list,
             "components.action": self._components_action,
+            "micromamba.status": self._micromamba_status,
+            "micromamba.install": self._micromamba_install,
+            "micromamba.verify": self._micromamba_verify,
+            "micromamba.uninstall": self._micromamba_uninstall,
+            "micromamba.create_env": self._micromamba_create_env,
+            "micromamba.remove_env": self._micromamba_remove_env,
             "cache.size": self._cache_size,
             "cache.clear": self._cache_clear,
             "open_path": self._open_path,
@@ -814,6 +820,36 @@ class RpcServer:
             local_path=params.get("local_path"),
             confirmed=bool(params.get("confirmed", False)),
         )}
+
+    def _micromamba(self):
+        from .micromamba import MicromambaManager
+
+        return MicromambaManager(self.ctx.data_dir)
+
+    def _micromamba_status(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"micromamba": self._micromamba().status()}
+
+    def _micromamba_install(self, params: dict[str, Any]) -> dict[str, Any]:
+        if not bool(params.get("confirmed", False)):
+            self._invalid("micromamba.install requires confirmed=true", {"requires_confirmation": True})
+        return {"micromamba": self._micromamba().install()}
+
+    def _micromamba_verify(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"micromamba": self._micromamba().verify()}
+
+    def _micromamba_uninstall(self, params: dict[str, Any]) -> dict[str, Any]:
+        if not bool(params.get("confirmed", False)):
+            self._invalid("micromamba.uninstall requires confirmed=true", {"requires_confirmation": True})
+        return {"micromamba": self._micromamba().uninstall()}
+
+    def _micromamba_create_env(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"micromamba": self._micromamba().create_env(
+            str(params.get("name") or "e2e"), str(params.get("python") or "3.10"))}
+
+    def _micromamba_remove_env(self, params: dict[str, Any]) -> dict[str, Any]:
+        if not bool(params.get("confirmed", False)):
+            self._invalid("micromamba.remove_env requires confirmed=true", {"requires_confirmation": True})
+        return {"micromamba": self._micromamba().remove_env(str(params.get("name") or ""))}
 
     def _cache_size(self, params: dict[str, Any]) -> dict[str, Any]:
         return self.ctx.cache.size()

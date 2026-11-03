@@ -165,7 +165,17 @@ class AppContext:
         }
 
     def engine_infos(self) -> list[dict[str, Any]]:
-        return self.registry.infos()
+        infos = self.registry.infos()
+        try:
+            from .components import ComponentManager
+            manager = ComponentManager(self.data_dir, self)
+            for info in infos:
+                if not manager.is_enabled(str(info.get("id") or "")):
+                    info["status"] = "unavailable"
+                    info["reason"] = "component disabled in the universal component manager"
+        except Exception:
+            pass
+        return infos
 
     def install_hint(self, engine_id: str) -> dict[str, Any]:
         return self.registry.install_hint(engine_id)

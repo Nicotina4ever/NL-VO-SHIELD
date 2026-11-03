@@ -1305,6 +1305,45 @@ pub async fn components_list(state: State<'_, AppCtx>) -> NlResult<Value> {
 }
 
 #[tauri::command]
+pub async fn micromamba_status(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "micromamba.status", json!({})).await
+}
+
+#[tauri::command]
+pub async fn micromamba_install(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "micromamba.install", json!({ "confirmed": true })).await
+}
+
+#[tauri::command]
+pub async fn micromamba_verify(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "micromamba.verify", json!({})).await
+}
+
+#[tauri::command]
+pub async fn micromamba_uninstall(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "micromamba.uninstall", json!({ "confirmed": true })).await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MicromambaEnvRequest {
+    pub name: String,
+    #[serde(default = "default_python")]
+    pub python: String,
+}
+
+fn default_python() -> String { "3.10".to_string() }
+
+#[tauri::command]
+pub async fn micromamba_create_env(state: State<'_, AppCtx>, request: MicromambaEnvRequest) -> NlResult<Value> {
+    rpc(state.inner(), "micromamba.create_env", json!({ "name": request.name, "python": request.python })).await
+}
+
+#[tauri::command]
+pub async fn micromamba_remove_env(state: State<'_, AppCtx>, request: MicromambaEnvRequest) -> NlResult<Value> {
+    rpc(state.inner(), "micromamba.remove_env", json!({ "name": request.name, "confirmed": true })).await
+}
+
+#[tauri::command]
 pub async fn components_action(
     state: State<'_, AppCtx>,
     request: ComponentActionRequest,
