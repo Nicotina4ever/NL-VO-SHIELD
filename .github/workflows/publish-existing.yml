@@ -1,6 +1,9 @@
 name: Publish existing release
 
 on:
+  push:
+    paths:
+      - ".github/workflows/publish-existing.yml"
   workflow_dispatch:
     inputs:
       tag:
