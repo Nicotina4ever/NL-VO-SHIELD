@@ -449,6 +449,17 @@ def run_job(
                 warnings.append(f"Optional engine '{step.engine}' unknown; skipped")
                 continue
             engine = ctx.registry.get(step.engine)
+            from .components import ComponentManager
+            if not ComponentManager(ctx.data_dir).is_enabled(step.engine):
+                if step.required:
+                    failed.append({"engine": step.engine, "action": step.action,
+                                   "error": "component disabled in the universal component manager",
+                                   "required": True, "code": "COMPONENT_DISABLED"})
+                    required_failed = True
+                    break
+                skipped.append({"engine": step.engine, "action": step.action,
+                                "reason": "component disabled"})
+                continue
             available, reason = engine.availability()
             if not available:
                 message = reason or f"Engine '{step.engine}' is unavailable"

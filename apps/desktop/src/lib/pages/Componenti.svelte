@@ -1,0 +1,117 @@
+﻿<script lang="ts">
+  import { onMount } from "svelte";
+  import { t } from "../i18n.svelte";
+  import { toast } from "../ui.svelte";
+  import { componentsApi, type ComponentInfo } from "../ipc";
+  import { formatBytes } from "../format";
+
+  let items = $state<ComponentInfo[]>([]);
+  let total = $state(0);
+  let busy = $state<string | null>(null);
+  let paths = $state<Record<string, string>>({});
+
+  async function refresh() {
+    try {
+      const res = await componentsApi.list();
+      items = res.items;
+      total = res.total_bytes;
+    } catch (err) {
+      toast("err", t("common.unknownError"), String((err as Error)?.message ?? err));
+    }
+  }
+
+  async function act(item: ComponentInfo, action: string) {
+    if (action === "uninstall" && !confirm(t("components.confirm"))) return;
+    const local = paths[item.id]?.trim() || null;
+    if (action === "install" && !local) {
+      toast("err", t("components.install"), t("components.requirements"));
+      return;
+    }
+    busy = item.id;
+    try {
+      await componentsApi.action({
+        id: item.id,
+        action,
+        localPath: local,
+        confirmed: action === "install" || action === "uninstall",
+      });
+      toast("ok", item.label, action);
+      await refresh();
+    } catch (err) {
+      toast("err", item.label, String((err as Error)?.message ?? err));
+    } finally {
+      busy = null;
+    }
+  }
+
+  onMount(refresh);
+</script>
+
+<div class="page">
+  <div class="page-head">
+    <div class="page-head__text">
+      <h1>{t("components.title")}</h1>
+      <p>{t("components.subtitle")}</p>
+    </div>
+    <span class="badge">{formatBytes(total)}</span>
+  </div>
+
+  <div class="grid">
+    {#each items as item (item.id)}
+      <section class="card" aria-busy={busy === item.id}>
+        <div class="card__head">
+          <div>
+            <h2>{item.label}</h2>
+            <p class="muted">{item.description}</p>
+          </div>
+          <span class="badge" class:tone-good={item.installed} class:tone-warn={!item.installed}>
+            {item.installed ? t("components.installed") : t("components.notInstalled")}
+          </span>
+        </div>
+
+        <div class="meta">
+          <span>{t("components.threats")}: {item.threats.join(" / ")}</span>
+          <span>{t("components.requirements")}: {item.requirements}</span>
+          <span>{t("components.size")}: {formatBytes(item.size_bytes)}</span>
+          {#if item.builtin}<span>{t("components.builtin")}</span>{/if}
+          <span>{item.enabled ? t("components.enable") : t("components.disable")}</span>
+        </div>
+
+        {#if !item.installed && !item.builtin}
+          <label class="field">
+            <span>{t("components.install")}</span>
+            <input bind:value={paths[item.id]} placeholder="C:\\percorso\\componente" />
+          </label>
+        {/if}
+
+        <div class="actions">
+          {#if item.actions.includes("install")}
+            <button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>
+              {t("components.install")}
+            </button>
+          {/if}
+          {#if item.actions.includes("verify")}
+            <button class="btn" disabled={busy === item.id} onclick={() => act(item, "verify")}>
+              {t("components.verify")}
+            </button>
+          {/if}
+          {#if item.actions.includes("enable")}
+            <button class="btn" disabled={busy === item.id} onclick={() => act(item, "enable")}>
+              {t("components.enable")}
+            </button>
+          {/if}
+          {#if item.actions.includes("disable")}
+            <button class="btn" disabled={busy === item.id} onclick={() => act(item, "disable")}>
+              {t("components.disable")}
+            </button>
+          {/if}
+          {#if item.actions.includes("uninstall")}
+            <button class="btn btn--danger" disabled={busy === item.id} onclick={() => act(item, "uninstall")}>
+              {t("components.uninstall")}
+            </button>
+          {/if}
+        </div>
+      </section>
+    {/each}
+  </div>
+</div>

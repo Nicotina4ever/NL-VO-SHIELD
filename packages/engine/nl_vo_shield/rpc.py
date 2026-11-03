@@ -239,6 +239,8 @@ class RpcServer:
             "lab.transcribe": self._lab_transcribe,
             "lab.run": self._lab_run,
             "lab.verify": self._lab_verify,
+            "components.list": self._components_list,
+            "components.action": self._components_action,
             "cache.size": self._cache_size,
             "cache.clear": self._cache_clear,
             "open_path": self._open_path,
@@ -796,6 +798,22 @@ class RpcServer:
     def _lab_verify(self, params: dict[str, Any]) -> dict[str, Any]:
         deep = bool(params.get("deep", False))
         return {"lab": self._qwen_lab().verify(deep=deep)}
+
+    def _components(self):
+        from .components import ComponentManager
+
+        return ComponentManager(self.ctx.data_dir, self.ctx)
+
+    def _components_list(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._components().list()
+
+    def _components_action(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"component": self._components().action(
+            str(params.get("id") or ""),
+            str(params.get("action") or ""),
+            local_path=params.get("local_path"),
+            confirmed=bool(params.get("confirmed", False)),
+        )}
 
     def _cache_size(self, params: dict[str, Any]) -> dict[str, Any]:
         return self.ctx.cache.size()

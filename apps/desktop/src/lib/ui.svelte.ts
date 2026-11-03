@@ -8,6 +8,7 @@ export type Page =
   | "verify"
   | "lab"
   | "engines"
+  | "components"
   | "profiles"
   | "settings"
   | "diagnostics"

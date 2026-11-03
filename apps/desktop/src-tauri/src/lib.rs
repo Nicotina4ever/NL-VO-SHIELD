@@ -105,6 +105,8 @@ pub fn run() {
             commands::set_model_settings,
             commands::check_updates,
             commands::lab_status,
+            commands::components_list,
+            commands::components_action,
             commands::lab_install_model,
             commands::lab_uninstall_model,
             commands::lab_install_whisper,

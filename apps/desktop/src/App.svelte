@@ -28,6 +28,7 @@ import Laboratorio from "./lib/pages/Laboratorio.svelte";
   import Profiles from "./lib/pages/Profiles.svelte";
   import Settings from "./lib/pages/Settings.svelte";
   import Diagnostics from "./lib/pages/Diagnostics.svelte";
+  import Componenti from "./lib/pages/Componenti.svelte";
   import About from "./lib/pages/About.svelte";
 
   const appVersion = $derived(engine.host?.appVersion ?? "0.1.0");
@@ -98,6 +99,7 @@ import Laboratorio from "./lib/pages/Laboratorio.svelte";
       label: "nav.groupSystem",
       items: [
         { page: "engines", icon: "engines", key: "nav.engines" },
+        { page: "components", icon: "engines", key: "nav.components" },
         { page: "profiles", icon: "profiles", key: "nav.profiles" },
         { page: "settings", icon: "settings", key: "nav.settings" },
         { page: "diagnostics", icon: "diagnostics", key: "nav.diagnostics" },
@@ -304,6 +306,8 @@ import Laboratorio from "./lib/pages/Laboratorio.svelte";
         <Laboratorio />
       {:else if ui.page === "engines"}
         <Engines />
+      {:else if ui.page === "components"}
+        <Componenti />
       {:else if ui.page === "profiles"}
         <Profiles />
       {:else if ui.page === "settings"}

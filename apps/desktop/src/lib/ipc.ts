@@ -279,3 +279,25 @@ export const labApi = {
   }) => call<unknown>("lab_run", { request }),
 };
 
+
+export const componentsApi = {
+  list: () => call<{ items: ComponentInfo[]; total_bytes: number }>("components_list"),
+  action: (request: { id: string; action: string; localPath?: string | null; confirmed?: boolean }) =>
+    call<{ component: Record<string, unknown> }>("components_action", { request }),
+};
+
+export interface ComponentInfo {
+  id: string;
+  label: string;
+  kind: string;
+  threats: string[];
+  builtin: boolean;
+  removable: boolean;
+  installed: boolean;
+  enabled: boolean;
+  path: string | null;
+  size_bytes: number;
+  requirements: string;
+  description: string;
+  actions: string[];
+}

@@ -1288,6 +1288,40 @@ pub struct AiUninstallRequest {
     pub remove_models: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComponentActionRequest {
+    pub id: String,
+    pub action: String,
+    #[serde(default)]
+    pub local_path: Option<String>,
+    #[serde(default)]
+    pub confirmed: bool,
+}
+
+#[tauri::command]
+pub async fn components_list(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "components.list", json!({})).await
+}
+
+#[tauri::command]
+pub async fn components_action(
+    state: State<'_, AppCtx>,
+    request: ComponentActionRequest,
+) -> NlResult<Value> {
+    rpc(
+        state.inner(),
+        "components.action",
+        json!({
+            "id": request.id,
+            "action": request.action,
+            "local_path": request.local_path,
+            "confirmed": request.confirmed,
+        }),
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn ai_status(state: State<'_, AppCtx>) -> NlResult<Value> {
     rpc(state.inner(), "ai.status", json!({})).await
