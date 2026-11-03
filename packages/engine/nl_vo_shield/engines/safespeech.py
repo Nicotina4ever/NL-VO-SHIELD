@@ -97,8 +97,14 @@ class SafeSpeechEngine(BaseEngine):
         return None
 
     def _runner(self) -> Path | None:
-        candidate = Path(__file__).parent.parent / "safespeech_runner.py"
-        return candidate if candidate.is_file() else None
+        candidates = [
+            Path(__file__).parent.parent / "safespeech_runner.py",
+            self._data_dir() / "components" / "safespeech" / "safespeech_runner.py",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return None
 
     def _weight_status(self) -> tuple[list[str], list[str]]:
         if self._directory is None:

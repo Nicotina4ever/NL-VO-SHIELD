@@ -99,8 +99,14 @@ class MimicBlockerEngine(BaseEngine):
         return None
 
     def _runner(self) -> Path | None:
-        candidate = Path(__file__).parent.parent / "mimic_runner.py"
-        return candidate if candidate.is_file() else None
+        candidates = [
+            Path(__file__).parent.parent / "mimic_runner.py",
+            self._data_dir() / "components" / "mimic_blocker" / "mimic_runner.py",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return None
 
     def availability(self) -> tuple[bool, str | None]:
         if self._directory is None or self._model_dir() is None:
