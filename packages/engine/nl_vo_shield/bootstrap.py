@@ -125,7 +125,7 @@ MANIFESTS: dict[str, dict[str, Any]] = {
     "enkidu": {
         "source": ("https://github.com/NoobCodeNameless/Enkidu", "93c388e4ec5adfa66eabb230c4d8790d300f23a9"),
         "required": ["core/enkidu.py"],
-        "runtime": "ai",
+        "runtime": "ai-bootstrap",
         "packages": ["numpy<2", "scipy<1.14", "soundfile", "librosa", "transformers==4.46.3",
                      "huggingface_hub>=0.30", "speechbrain==1.0.0", "safetensors", "hyperpyyaml", "ruamel.yaml", "sentencepiece", "joblib", "packaging"],
         "models": [{"kind": "hf_snapshot", "repo": "speechbrain/spkrec-ecapa-voxceleb",
@@ -135,7 +135,7 @@ MANIFESTS: dict[str, dict[str, Any]] = {
     "mimic_blocker": {
         "source": ("https://github.com/yugwangyeol/Mimic-Blocker", "c7b0ae79bc647ce911a50b61262d3d0906185584"),
         "required": ["model/model.py", "model/checkpoints/generator_wavlm.pth"],
-        "runtime": "ai",
+        "runtime": "ai-bootstrap",
         "packages": ["numpy<2", "scipy<1.14", "soundfile", "librosa", "transformers==4.46.3",
                      "huggingface_hub>=0.30"],
         "models": [],

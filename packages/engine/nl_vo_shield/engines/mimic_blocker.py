@@ -90,6 +90,8 @@ class MimicBlockerEngine(BaseEngine):
         override = os.environ.get("NLVS_MIMIC_PYTHON")
         candidates = [Path(override).expanduser()] if override else []
         candidates += [
+            self._data_dir() / "runtime" / "ai-bootstrap" / "venv" / "Scripts" / "python.exe",
+            self._data_dir() / "runtime" / "ai-bootstrap" / "venv" / "python.exe",
             self._data_dir() / "runtime" / "ai" / "venv" / "Scripts" / "python.exe",
             self._data_dir() / "runtime" / "ai" / "venv" / "python.exe",
             self._data_dir() / "runtime" / "ai" / "venv" / "bin" / "python3",
