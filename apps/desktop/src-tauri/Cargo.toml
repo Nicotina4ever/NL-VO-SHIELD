@@ -1,6 +1,6 @@
 [package]
 name = "nl-vo-shield"
-version = "1.2.5"
+version = "1.2.6"
 description = "NL VO Shield — desktop shell (Tauri 2) per il motore Python di protezione voce"
 authors = ["Nicola Lanci"]
 edition = "2021"

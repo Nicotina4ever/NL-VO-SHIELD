@@ -118,7 +118,8 @@ class E2EVGuardEngine(BaseEngine):
                    "--input_wav", str(source), "--epsilon", str(epsilon), "--epochs", str(epochs)]
         env = dict(os.environ)
         # E2E's StyleTTS2 phonemizer needs the installed eSpeak NG library.
-        espeak = Path(r"C:\Program Files\eSpeak NG")
+        local_espeak = self._directory / "espeak"
+        espeak = local_espeak if local_espeak.is_dir() else Path(r"C:\Program Files\eSpeak NG")
         if espeak.is_dir():
             env.setdefault("PHONEMIZER_ESPEAK_LIBRARY", str(espeak / "libespeak-ng.dll"))
             env.setdefault("PHONEMIZER_ESPEAK_PATH", str(espeak / "espeak-ng-data"))

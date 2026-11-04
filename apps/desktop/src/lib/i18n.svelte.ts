@@ -105,7 +105,7 @@ const it: Dict = {
   "micromamba.notInstalled": "Non installato",
   "components.title": "Componenti e motori",
   "components.subtitle": "Installa, configura, abilita o rimuovi ogni componente dell'applicazione.",
-  "components.install": "Installa da percorso locale",
+  "components.install": "Importa copia locale",
   "components.uninstall": "Disinstalla",
   "components.enable": "Abilita",
   "components.disable": "Disabilita",
@@ -1148,7 +1148,7 @@ const en: Dict = {
   "micromamba.notInstalled": "Not installed",
   "components.title": "Components and engines",
   "components.subtitle": "Install, configure, enable or remove every application component.",
-  "components.install": "Install from local path",
+  "components.install": "Import local copy",
   "components.uninstall": "Uninstall",
   "components.enable": "Enable",
   "components.disable": "Disable",
@@ -2146,3 +2146,4 @@ export function hostErrorMessage(err: { code?: string; message?: string } | null
   if (err.code && it[`errors.${err.code}`]) return t(`errors.${err.code}`);
   return err.message ?? t("common.unknownError");
 }
+

@@ -1,9 +1,10 @@
 """Universal component catalogue and lifecycle manager.
 
-One catalogue drives the GUI, the installer and the engine registry.  Built-in
-engines can be disabled; external engines are installed from a local copy (a
-directory junction/symlink is used so nothing is duplicated) and can be removed
-without touching the user's source/checkpoint directory.
+One catalogue drives the GUI, the installer and the engine registry. Built-in
+engines can be disabled; external engines are imported by *copying* the selected
+source into the application data directory. No junction, symlink or other
+permanent reference to the import location is created: after the import the
+source directory can be moved or deleted without breaking the component.
 """
 
 from __future__ import annotations
@@ -120,6 +121,8 @@ class ComponentManager:
             "path": str(path),
             "present": present,
             "runtime_present": python.is_file(),
+            "runtime_path": str(runtime),
+            "links": self._count_links(path) if path.exists() else 0,
             "size_bytes": self._size(path),
         }
 
@@ -195,20 +198,27 @@ class ComponentManager:
                     raise ComponentError(f"Percorso non valido; mancano {', '.join(missing)}")
                 if target.exists():
                     raise ComponentError("Componente già presente; rimuoverlo prima")
-                self._link(source, target)
+                self._copy_component(source, target)
                 enabled[cid] = True
                 self._write(state)
-                return {"id": cid, "action": "install", "path": str(target), "linked": True}
-            if not target.exists():
+                return {"id": cid, "action": "install", "path": str(target),
+                        "copied": True, "linked": False, "size_bytes": self._size(target),
+                        "source": str(source)}
+            if not target.exists() or target.is_symlink() or self._is_reparse(target):
                 raise ComponentError("Componente non installato")
             if action == "verify":
                 st = self._external_status(cid, spec)
-                return {"id": cid, "action": "verify", "ok": st["present"], **st}
+                st["independent"] = st["present"] and st["links"] == 0
+                return {"id": cid, "action": "verify", "ok": st["independent"], **st}
             if action == "uninstall":
-                removed = self._unlink(target)
+                if not self._is_managed(target):
+                    raise ComponentError("Rifiuto di rimuovere un percorso non gestito")
+                freed = self._size(target)
+                removed = self._remove(target)
                 enabled.pop(cid, None)
                 self._write(state)
-                return {"id": cid, "action": "uninstall", "removed": removed, "path": str(target)}
+                return {"id": cid, "action": "uninstall", "removed": not target.exists(),
+                        "freed_bytes": freed, "path": str(target)}
             if action in ("enable", "disable"):
                 enabled[cid] = action == "enable"
                 self._write(state)
@@ -239,29 +249,78 @@ class ComponentManager:
             raise ComponentError("Usa lab.install_model / lab.install_whisper per questa installazione")
         raise ComponentError(f"Componente sconosciuto: {cid}")
 
-    @staticmethod
-    def _link(source: Path, target: Path) -> None:
+    def _copy_component(self, source: Path, target: Path) -> None:
+        """Copy the imported component; never link back to the source."""
+        if not source.is_dir():
+            raise ComponentError("Il percorso di importazione deve essere una directory")
+        try:
+            if target.resolve() == source.resolve():
+                raise ComponentError("La sorgente coincide con la destinazione gestita")
+        except OSError:
+            pass
+        try:
+            free = shutil.disk_usage(target.parent).free
+            needed = self._size(source)
+            if needed and free < needed + 64 * 1024 * 1024:
+                raise ComponentError(
+                    f"Spazio insufficiente: servono {needed // (1024 * 1024)} MB, liberi {free // (1024 * 1024)} MB")
+        except OSError:
+            pass
         target.parent.mkdir(parents=True, exist_ok=True)
-        if os.name == "nt":
-            completed = subprocess.run(["cmd", "/c", "mklink", "/J", str(target), str(source)],
-                                       capture_output=True, text=True)
-            if completed.returncode != 0:
-                raise ComponentError("Creazione del collegamento fallita: " + (completed.stderr or completed.stdout))
-        else:
-            target.symlink_to(source, target_is_directory=True)
+        try:
+            shutil.copytree(source, target, symlinks=False, dirs_exist_ok=False)
+        except Exception as exc:
+            shutil.rmtree(target, ignore_errors=True)
+            raise ComponentError("Copia del componente fallita: " + str(exc)) from exc
+        # Imported components must not retain links to the original tree.
+        links = self._count_links(target)
+        if links:
+            shutil.rmtree(target, ignore_errors=True)
+            raise ComponentError(f"La sorgente contiene {links} link simbolici; esportarla come copia reale")
+
+    def _is_managed(self, target: Path) -> bool:
+        try:
+            target.resolve().relative_to(self.components_dir.resolve())
+            return True
+        except (ValueError, OSError):
+            return False
 
     @staticmethod
-    def _unlink(target: Path) -> bool:
-        if not target.exists():
+    def _is_reparse(path: Path) -> bool:
+        try:
+            return bool(path.lstat().st_file_attributes & 0x400)
+        except (AttributeError, OSError):
+            return path.is_symlink()
+
+    def _count_links(self, source: Path) -> int:
+        count = 0
+        for root, _dirs, files in os.walk(source, followlinks=False):
+            if self._is_reparse(Path(root)):
+                count += 1
+            for name in files:
+                if self._is_reparse(Path(root) / name):
+                    count += 1
+        return count
+
+    @staticmethod
+    def _remove(target: Path) -> bool:
+        if not target.exists() and not target.is_symlink():
             return False
-        if os.name == "nt" and not target.is_symlink():
-            completed = subprocess.run(["cmd", "/c", "rmdir", str(target)], capture_output=True, text=True)
-            if completed.returncode == 0:
-                return True
         if target.is_symlink():
             target.unlink()
             return True
-        shutil.rmtree(target, ignore_errors=True)
+        if os.name == "nt" and target.lstat().st_file_attributes & 0x400:
+            completed = subprocess.run(["cmd", "/c", "rmdir", str(target)], capture_output=True, text=True)
+            return completed.returncode == 0
+
+        def _on_error(func, path, _exc):
+            try:
+                os.chmod(path, 0o700)
+                func(path)
+            except Exception:
+                pass
+
+        shutil.rmtree(target, onerror=_on_error)
         return not target.exists()
 
     def is_enabled(self, cid: str) -> bool:
