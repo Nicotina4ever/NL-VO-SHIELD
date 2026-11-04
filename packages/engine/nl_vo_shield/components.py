@@ -63,10 +63,12 @@ _EXTERNAL = {
         "kind": "protection",
         "threats": ["TTS", "VC"],
         "required": ["protect.py"],
-        "runtime": "runtime/ai/venv",
+        "runtime": "runtime/e2e/venv",
         "description": "Protezione E2E-VGuard (componente esterno).",
     },
 }
+
+_BOOTSTRAP_IDS = {"safespeech", "mimic_blocker", "enkidu", "e2e_vguard"}
 
 _LAB_MODELS = [
     ("qwen3-tts-0.6b", "Qwen3-TTS 0.6B", "lab", ["TTS"], "Qwen3-TTS-12Hz-0.6B-Base"),
@@ -148,7 +150,7 @@ class ComponentManager:
                 "size_bytes": st["size_bytes"],
                 "requirements": ", ".join(spec["required"]) + " + runtime",
                 "runtime_present": st["runtime_present"],
-                "description": spec["description"],
+                "description": spec["description"], "bootstrap": cid in _BOOTSTRAP_IDS,
                 "actions": (["verify", "disable", "uninstall"] if installed else ["install"]) +
                            (["enable"] if installed and not enabled_map.get(cid, True) else []),
             })
@@ -191,7 +193,13 @@ class ComponentManager:
             target = self._external_path(cid)
             if action == "install":
                 if not local_path:
-                    raise ComponentError("local_path richiesto per il componente esterno")
+                    from .bootstrap import install as bootstrap_install
+                    result = bootstrap_install(self.data_dir, cid)
+                    enabled[cid] = True
+                    self._write(state)
+                    return {"id": cid, "action": "install", "bootstrap": True,
+                            "path": result.get("component"), "runtime": result.get("runtime"),
+                            "manual_missing": result.get("manual_missing", [])}
                 source = Path(local_path).expanduser().resolve()
                 missing = [rel for rel in spec["required"] if not (source / rel).is_file()]
                 if missing:

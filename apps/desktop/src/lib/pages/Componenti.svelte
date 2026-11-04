@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
   import { ui } from "../ui.svelte";
   import { onMount } from "svelte";
   import { t } from "../i18n.svelte";
@@ -32,7 +32,7 @@
   async function act(item: ComponentInfo, action: string) {
     if (action === "uninstall" && !confirm(t("components.confirm"))) return;
     const local = paths[item.id]?.trim() || null;
-    if (action === "install" && !local) {
+    if (action === "install" && !local && !item.bootstrap) {
       toast("err", t("components.install"), t("components.requirements"));
       return;
     }
@@ -117,11 +117,11 @@
           {#if item.builtin}<span>{t("components.builtin")}</span>{/if}
           <span>{item.enabled ? t("components.enable") : t("components.disable")}</span>
         </div>
-        {#if !item.installed && !item.builtin}
+        {#if !item.installed && !item.builtin && !item.bootstrap}
           <label class="field"><span>{t("components.install")}</span><input bind:value={paths[item.id]} placeholder="C:\\percorso\\componente" /></label>
         {/if}
         <div class="actions">
-          {#if item.actions.includes("install")}<button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>{t("components.install")}</button>{/if}
+          {#if item.actions.includes("install")}<button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>{item.bootstrap ? t("micromamba.install") : t("components.install")}</button>{/if}
           {#if item.actions.includes("verify")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "verify")}>{t("components.verify")}</button>{/if}
           {#if item.actions.includes("enable")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "enable")}>{t("components.enable")}</button>{/if}
           {#if item.actions.includes("disable")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "disable")}>{t("components.disable")}</button>{/if}
@@ -131,3 +131,4 @@
     {/each}
   </div>
 </div>
+
