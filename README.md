@@ -17,12 +17,12 @@ generare voci sintetiche: **nessuna funzione di clonazione è inclusa**.
 
 **Installazione.** Scarica l'installer dalla pagina *Releases* del repository:
 - Windows x64: `.exe` (NSIS) o `.msi`;
-- macOS (Apple Silicon / Intel): `.dmg`;
-- Linux x64: `.deb` o `.AppImage`.
+- macOS Apple Silicon: `.dmg`/`.app.tar.gz`;
+- Linux x64: `.deb`.
 
 Gli installer non firmati mostrano l'avviso standard del sistema operativo: le build
 pubbliche sono firmate solo quando il maintainer configura le chiavi di firma. Non serve
-Python, Node o Rust: il motore Python è incluso nel pacchetto. **Versione corrente: 1.0.0.**
+Python, Node o Rust: il motore Python è incluso nel pacchetto. **Versione corrente: 1.2.6.**
 
 **Primi passi.**
 1. Apri **Proteggi**, trascina un file WAV/MP3/FLAC autorizzato e scegli un preset:
@@ -71,6 +71,23 @@ Python, Node o Rust: il motore Python è incluso nel pacchetto. **Versione corre
   una chiave di firma, altrimenti resta **disabilitato** e l'app lo dichiara (nessun
   aggiornamento "simulato").
 
+
+**Componenti opzionali dalla GUI (1.2.6).** Dalla pagina **Componenti** puoi installare
+SafeSpeech, Mimic Blocker, Enkidu ed E2E-VGuard con un clic (o **Installa tutto** in sequenza).
+L'app scarica i sorgenti ufficiali, crea un ambiente Python/Micromamba dentro `<install>\data`,
+installa le dipendenze, scarica i checkpoint (Hugging Face e Google Drive per E2E) e verifica
+runner e runtime. Le installazioni sono **job asincroni** con avanzamento, log persistenti
+(`data\logs\component-<id>.log`) e stato reale; un componente è disponibile solo se runtime,
+checkpoint e runner sono effettivamente presenti. Sono presenti **Ripara/Aggiorna** e
+**Disinstalla**, e i quattro motori sono gestibili anche dalla pagina **Motori**.
+La stessa azione Installa/Ripara è usata da Motori e Componenti. Per E2E su Windows eSpeak
+viene preparato automaticamente; su Linux/macOS richiede ancora eSpeak di sistema.
+
+**Tre modalità di interfaccia.** *Semplice* guida con procedura 1-2-3; *Esperto* espone
+selezione motori, ordine pipeline, preset e parametri operativi; *Avanzato* mostra parametri
+reali per motore, runtime/device, log e diagnostica. La modalità scelta viene ricordata al
+riavvio.
+
 **Privacy.** Nessuna telemetria. Le registrazioni non lasciano la macchina e non vengono
 inviate a ElevenLabs o ad altri servizi. Le ricevute, i profili e le chiavi C2PA restano nella
 cartella dati locale. La rete serve solo per installazioni opzionali richieste esplicitamente
@@ -87,7 +104,7 @@ motori, ricevute e report. Dettagli e contratto: `docs/ARCHITECTURE.md`; packagi
 `node tooling/gen-icons.mjs`, `node tooling/leak-guard.mjs`, `tooling/build-engine-sidecar.*`,
 `tooling/package.*`.
 
-**Roadmap / integrazioni future.** Non ancora implementate nella 1.0.0 (nessun pulsante
+**Roadmap / integrazioni future.** Non ancora implementate nella 1.2.6 (nessun pulsante
 finto, nessuna promessa attiva):
 - **watch folder**: monitoraggio di una cartella per proteggere automaticamente i file
   esportati (es. dal DAW);
@@ -109,10 +126,10 @@ It is built for voice actors and studios that want to track their own files — 
 cloning feature is included**.
 
 **Install.** Download the installer from the repository *Releases* page: Windows x64
-(`.exe` NSIS or `.msi`), macOS Apple Silicon/Intel (`.dmg`), Linux x64 (`.deb` or `.AppImage`).
+(`.exe` NSIS or `.msi`), macOS Apple Silicon (`.dmg`/`.app.tar.gz`), Linux x64 (`.deb`).
 No Python, Node or Rust is needed: the Python engine is bundled. Unsigned builds show the
 usual OS warning; public builds are signed only when the maintainer configures signing keys.
-**Current version: 1.0.0.**
+**Current version: 1.2.6.**
 
 **First steps.** Open **Protect**, drop an authorized WAV/MP3/FLAC file and choose a preset:
 three levels — *Light/Publication*, *Balanced/Demo*, *Maximum/Studio* — or **Custom** for
@@ -143,6 +160,22 @@ from GitHub releases: the app checks the latest release and offers a manual down
 update is enabled only when the maintainer configures a signing key, otherwise it is
 **disabled** and the app says so.
 
+
+**Optional engines from the GUI (1.2.6).** The **Components** page installs SafeSpeech,
+Mimic Blocker, Enkidu and E2E-VGuard with one click (or **Install all**, sequentially).
+The app downloads official sources, creates a Python/Micromamba environment under
+`<install>\data`, installs dependencies, downloads checkpoints (Hugging Face; Google Drive
+for E2E) and verifies runtime, runner and files. Installs run as **asynchronous jobs** with
+progress, persistent logs (`data\logs\component-<id>.log`) and real status; an engine is
+available only when runtime, checkpoints and runner are actually present. **Repair/Update**
+and **Uninstall** are available, and the same actions are exposed on the **Engines** page.
+The same Install/Repair action is shared by Engines and Components. On Windows eSpeak is
+prepared automatically for E2E; Linux/macOS still require system eSpeak.
+
+**Three UI modes.** *Simple* gives a 1-2-3 guided flow; *Expert* exposes engine selection,
+pipeline order, presets and operational parameters; *Advanced* shows real per-engine
+parameters, runtime/device, logs and diagnostics. The selected mode is restored on restart.
+
 **Privacy.** No telemetry. Recordings never leave the machine and are not sent to ElevenLabs or
 any other service. Receipts, profiles and C2PA keys stay in the local app data directory. The
 network is used only for explicitly requested optional installs and signed updates.
@@ -151,12 +184,12 @@ network is used only for explicitly requested optional installs and signed updat
 over JSON-RPC stdio; the Python core handles audio I/O, the fail-closed pipeline, engines,
 receipts and reports. See `docs/ARCHITECTURE.md` and `docs/PACKAGING.md`.
 
-**Roadmap / future integrations.** Not implemented in 1.0.0 (no fake buttons, no active
+**Roadmap / future integrations.** Not implemented in 1.2.6 (no fake buttons, no active
 promises): a **watch folder** that protects exported files automatically, and a **Reaper
 action/script** that protects the exported take directly. The Python core already exposes the
 local CLI and RPC, so these will be thin wrappers over the same engine with the same
 fail-closed semantics.
-**Repository.** https://github.com/Nicotina4ever/NL-VO-SHIELD`n`n**Release 1.0.0.** https://github.com/Nicotina4ever/NL-VO-SHIELD/releases/latest
+**Repository.** https://github.com/Nicotina4ever/NL-VO-SHIELD`n`n**Release 1.2.6.** https://github.com/Nicotina4ever/NL-VO-SHIELD/releases/latest
 
 ---
 
