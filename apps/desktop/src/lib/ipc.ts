@@ -306,6 +306,7 @@ export interface ComponentInfo {
   description: string;
   actions: string[];
   bootstrap?: boolean;
+  runtime_present?: boolean;
   manual_missing?: string[];
 }
 

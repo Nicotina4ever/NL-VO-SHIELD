@@ -152,7 +152,7 @@
           <progress max="100" value={progress.pct} style="width:100%"></progress>
         {/if}
         <div class="actions">
-          {#if item.actions.includes("install")}<button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>{item.bootstrap ? t("micromamba.install") : t("components.install")}</button>{/if}
+          {#if item.actions.includes("install")}<button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>{item.bootstrap ? t("components.installAuto") : t("components.install")}</button>{/if}
           {#if item.actions.includes("verify")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "verify")}>{t("components.verify")}</button>{/if}
           {#if item.actions.includes("enable")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "enable")}>{t("components.enable")}</button>{/if}
           {#if item.actions.includes("disable")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "disable")}>{t("components.disable")}</button>{/if}

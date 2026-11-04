@@ -27,6 +27,7 @@ class ComponentError(NlvsError):
 
 
 _JOBS: dict[str, dict[str, Any]] = {}
+_INSTALL_LOCK = threading.Lock()
 _JOBS_LOCK = threading.Lock()
 
 
@@ -212,13 +213,22 @@ class ComponentManager:
                     def _worker(job_id: str = job_id, cid: str = cid) -> None:
                         try:
                             from .bootstrap import install as bootstrap_install
-                            def progress(stage, pct, msg):
-                                with _JOBS_LOCK:
-                                    job = _JOBS[job_id]
-                                    job.update(stage=stage, percent=int(pct), message=msg)
-                                    job["logs"].append(f"{pct}% {msg}")
-                                    job["logs"] = job["logs"][-80:]
-                            result = bootstrap_install(self.data_dir, cid, progress)
+                            log_path = self.data_dir / "logs" / f"component-{cid}.log"
+                            log_path.parent.mkdir(parents=True, exist_ok=True)
+                            def _log(line: str) -> None:
+                                with open(log_path, "a", encoding="utf-8") as fh:
+                                    fh.write(f"{utc_now_iso()} {line}\n")
+                            _log(f"job {job_id} start")
+                            with _INSTALL_LOCK:
+                                def progress(stage, pct, msg):
+                                    _log(f"{pct}% {stage}: {msg}")
+                                    with _JOBS_LOCK:
+                                        job = _JOBS[job_id]
+                                        job.update(stage=stage, percent=int(pct), message=msg)
+                                        job["logs"].append(f"{pct}% {msg}")
+                                        job["logs"] = job["logs"][-80:]
+                                result = bootstrap_install(self.data_dir, cid, progress)
+                            _log("bootstrap done")
                             st = self._state(); en = st.setdefault("enabled", {}); en[cid] = True; self._write(st)
                             with _JOBS_LOCK:
                                 _JOBS[job_id].update(status="done", percent=100, stage="done",
@@ -226,6 +236,11 @@ class ComponentManager:
                                                      "runtime": result.get("runtime"),
                                                      "manual_missing": result.get("manual_missing", [])})
                         except Exception as exc:
+                            try:
+                                with open(self.data_dir / "logs" / f"component-{cid}.log", "a", encoding="utf-8") as fh:
+                                    fh.write(f"{utc_now_iso()} ERROR {exc}\n")
+                            except Exception:
+                                pass
                             with _JOBS_LOCK:
                                 _JOBS[job_id].update(status="error", message=str(exc), stage="error")
                     threading.Thread(target=_worker, daemon=True).start()
@@ -234,7 +249,7 @@ class ComponentManager:
                 missing = [rel for rel in spec["required"] if not (source / rel).is_file()]
                 if missing:
                     raise ComponentError(f"Percorso non valido; mancano {', '.join(missing)}")
-                if target.exists():
+                if target.exists() and (target / ".nlvs-bootstrap.json").is_file():
                     raise ComponentError("Componente già presente; rimuoverlo prima")
                 self._copy_component(source, target)
                 enabled[cid] = True

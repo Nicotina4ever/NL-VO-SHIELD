@@ -10,7 +10,7 @@
     modelsForEngine,
     engineWeightsState,
   } from "../engine.svelte";
-  import { engineApi, aiApi, componentsApi, type AiRuntimeStatus } from "../ipc";
+  import { engineApi, aiApi, componentsApi, type AiRuntimeStatus, type ComponentInfo } from "../ipc";
   import { engineStatusTone, formatBytes } from "../format";
   import type { EngineInfo, InstallHint, ModelInfo } from "../types";
   import Icon from "../components/Icon.svelte";
@@ -23,13 +23,48 @@
   let hintError = $state<string | null>(null);
   let detailsEngine = $state<EngineInfo | null>(null);
   let installing = $state<string | null>(null);
+  let components = $state<Record<string, ComponentInfo>>({});
+  let componentError = $state<string | null>(null);
   const BOOTSTRAP_IDS = new Set(["safespeech", "mimic_blocker", "enkidu", "e2e_vguard"]);
+
+  async function loadComponents(): Promise<void> {
+    try {
+      const res = await componentsApi.list();
+      components = Object.fromEntries(res.items.map((item) => [item.id, item]));
+      componentError = null;
+    } catch (err) { componentError = hostErrorMessage(err as { code?: string; message?: string }); }
+  }
+
+  function engineComponentState(item: { id: string; status: string }): string {
+    const comp = components[item.id];
+    if (!comp) return item.status;
+    if (comp.installed && comp.runtime_present) return "available";
+    if (comp.installed) return "repair";
+    if (comp.bootstrap) return "install";
+    return "unavailable";
+  }
+
+  function componentActionLabel(state: string): string {
+    if (state === "install") return t("components.install");
+    if (state === "repair") return t("components.verify");
+    return t("engines.installHint");
+  }
+
+  async function componentAction(item: EngineInfo): Promise<void> {
+    const state = engineComponentState(item);
+    if (state === "install" || state === "repair") {
+      await installEngine(item.id);
+    } else {
+      await openHint(item);
+    }
+  }
 
   async function installEngine(id: string): Promise<void> {
     installing = id;
     try {
       await componentsApi.action({ id, action: "install", confirmed: true });
       await refreshEngines();
+      await loadComponents();
       toast("ok", t("components.install"), id);
     } catch (err) {
       toast("err", t("components.install"), hostErrorMessage(err as { code?: string; message?: string }));
@@ -286,6 +321,7 @@
   }
 
   onMount(() => {
+    void loadComponents();
     void refreshAll();
   });
 </script>
@@ -354,6 +390,7 @@
     </div>
   </div>
 
+  {#if componentError}<div class="warn-box small">{componentError}</div>{/if}
   <div class="card">
     <div class="card__head">
       <h2>{t("engines.rec.title")}</h2>
@@ -371,7 +408,7 @@
                   <span class="engine-card__title">{rec.name}</span>
                   <span class="engine-card__sub">{kindLabel(rec.kind)} · {rec.id}</span>
                 </div>
-                <Badge label={statusLabel(rec.status)} tone={engineStatusTone(rec.status)} />
+                <Badge label={statusLabel(engineComponentState(rec))} tone={engineStatusTone(engineComponentState(rec))} />
               </div>
 
               <dl class="kv">
@@ -410,9 +447,9 @@
                 >
                   {t("engines.installHint")}
                 </button>
-                {#if BOOTSTRAP_IDS.has(rec.id) && rec.status === "unavailable"}
-                  <button class="btn btn--primary btn--sm" disabled={installing !== null} onclick={() => void installEngine(rec.id)}>
-                    {installing === rec.id ? t("common.running") : t("components.install")}
+                {#if BOOTSTRAP_IDS.has(rec.id)}
+                  <button class="btn btn--primary btn--sm" disabled={installing !== null} onclick={() => { const found = engine.engines.find((e) => e.id === rec.id); if (found) void componentAction(found); }}>
+                    {installing === rec.id ? t("common.running") : componentActionLabel(engineComponentState(rec))}
                   </button>
                 {/if}
                 <button class="btn btn--ghost btn--sm" onclick={goToModels}>

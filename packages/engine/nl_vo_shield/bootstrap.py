@@ -71,7 +71,7 @@ def _source(url: str, commit: str, target: Path, required: list[str]) -> None:
         roots = [p for p in Path(tmp).iterdir() if p.is_dir()]
         if not roots:
             raise BootstrapError("Archivio sorgente vuoto")
-        shutil.copytree(roots[0], target, dirs_exist_ok=False)
+        shutil.copytree(roots[0], target, dirs_exist_ok=True)
     missing = [rel for rel in required if not (target / rel).is_file()]
     if missing:
         shutil.rmtree(target, ignore_errors=True)
@@ -193,7 +193,7 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
         raise BootstrapError(f"Nessun manifest bootstrap per {cid}")
     emit = progress or (lambda *_args: None)
     component = data_dir / "components" / cid
-    if component.exists():
+    if component.exists() and (component / ".nlvs-bootstrap.json").is_file():
         raise BootstrapError("Componente già presente; rimuoverlo prima")
     url, commit = spec["source"]
     emit("source", 5, f"Download sorgente {cid}")
