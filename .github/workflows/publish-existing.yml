@@ -29,7 +29,7 @@ jobs:
           pattern: release-*
           path: release-assets
           merge-multiple: true
-          run-id: 41745302440
+          run-id: 41835145675
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Remove duplicate metadata files
         shell: bash
@@ -45,8 +45,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.4
-          name: NL VO Shield v1.2.4
+          tag_name: v1.2.5
+          name: NL VO Shield v1.2.5
           draft: false
           prerelease: false
           generate_release_notes: true
