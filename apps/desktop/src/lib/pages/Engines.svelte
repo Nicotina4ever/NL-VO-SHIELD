@@ -38,6 +38,7 @@
   function engineComponentState(item: { id: string; status: string }): string {
     const comp = components[item.id];
     if (!comp) return item.status;
+    if (comp.builtin) return comp.installed ? (item.status === "experimental" ? "experimental" : "available") : "unavailable";
     if (comp.installed && comp.runtime_present) return "available";
     if (comp.installed) return "repair";
     if (comp.bootstrap) return "install";
@@ -419,7 +420,7 @@
                 <dt>{t("engines.rec.requirements")}</dt>
                 <dd>{rec.requirements}</dd>
                 <dt>{t("engines.rec.install")}</dt>
-                <dd>{rec.install}</dd>
+                <dd>{BOOTSTRAP_IDS.has(rec.id) ? (components[rec.id]?.installed ? t("engines.rec.installedVerified") : t("engines.rec.installAutomatic")) : rec.install}</dd>
                 <dt>{t("engines.rec.quality")}</dt>
                 <dd>{rec.quality}</dd>
                 <dt>{t("engines.rec.efficacy")}</dt>

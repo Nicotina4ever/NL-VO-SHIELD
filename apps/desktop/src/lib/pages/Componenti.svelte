@@ -128,7 +128,7 @@
   </section>
 
   <div class="grid">
-    {#each items as item (item.id)}
+    {#each items.filter((i) => i.kind !== "lab" && i.kind !== "speech") as item (item.id)}
       <section class="card" aria-busy={busy === item.id}>
         <div class="card__head">
           <div><h2>{item.label}</h2><p class="muted">{item.description}</p></div>
@@ -162,5 +162,31 @@
       </section>
     {/each}
   </div>
+
+  <details class="card" style="margin-top:14px">
+    <summary class="card__head" style="cursor:pointer"><h2>Qwen TTS ({items.filter((i) => i.kind === "lab").length})</h2></summary>
+    <div class="card__body col" style="gap:6px">
+      {#each items.filter((i) => i.kind === "lab") as item (item.id)}
+        <div class="row gap-sm">
+          <span class="mono small">{item.id}</span><span class="spacer"></span>
+          <span class="small muted">{item.installed ? t("components.installed") : t("components.notInstalled")}</span>
+          {#if item.actions.includes("uninstall")}<button class="btn btn--danger btn--sm" onclick={() => act(item, "uninstall")}>{t("components.uninstall")}</button>{/if}
+        </div>
+      {/each}
+    </div>
+  </details>
+
+  <details class="card" style="margin-top:10px">
+    <summary class="card__head" style="cursor:pointer"><h2>Whisper ({items.filter((i) => i.kind === "speech").length})</h2></summary>
+    <div class="card__body col" style="gap:6px">
+      {#each items.filter((i) => i.kind === "speech") as item (item.id)}
+        <div class="row gap-sm">
+          <span class="mono small">{item.id}</span><span class="spacer"></span>
+          <span class="small muted">{item.installed ? t("components.installed") : t("components.notInstalled")}</span>
+          {#if item.actions.includes("uninstall")}<button class="btn btn--danger btn--sm" onclick={() => act(item, "uninstall")}>{t("components.uninstall")}</button>{/if}
+        </div>
+      {/each}
+    </div>
+  </details>
 </div>
 
