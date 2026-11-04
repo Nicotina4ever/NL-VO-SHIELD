@@ -225,9 +225,12 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
         elif model["kind"] == "hf_snapshot":
             if not (target / "embedding_model.ckpt").is_file():
                 emit("models", 85, f"Download {model['repo']}")
-                _run([str(python), "-c",
-                      "import sys; from huggingface_hub import snapshot_download; "
-                      f"snapshot_download({model['repo']!r}, local_dir={str(target)!r})"], timeout=7200)
+                files = ["hyperparams.yaml", "embedding_model.ckpt", "classifier.ckpt",
+                         "label_encoder.ckpt", "mean_var_norm_emb.ckpt"]
+                for filename in files:
+                    _download(f"{HF}/{model['repo']}/resolve/main/{filename}", target / filename)
+            if not (target / "embedding_model.ckpt").is_file():
+                raise BootstrapError("Snapshot ECAPA incompleto")
     missing = [rel for rel in spec.get("manual", []) if not (component / rel).is_file()]
     state = {"id": cid, "component": str(component), "runtime": str(venv),
              "python": str(python), "version": "1.2.6", "manual_missing": missing}

@@ -361,7 +361,10 @@ if (-not $SkipPyInstaller) {
     '--workpath', $cacheDir,
     '--specpath', $cacheDir,
     '--paths', $engineSrc,
-    '--collect-submodules', 'nl_vo_shield'
+    '--collect-submodules', 'nl_vo_shield',
+    '--add-data', (Join-Path $engineSrc 'nl_vo_shield\enkidu_runner.py') + ';nl_vo_shield',
+    '--add-data', (Join-Path $engineSrc 'nl_vo_shield\mimic_runner.py') + ';nl_vo_shield',
+    '--add-data', (Join-Path $engineSrc 'nl_vo_shield\safespeech_runner.py') + ';nl_vo_shield',
   )
   foreach ($module in $excludeModules) { $pyArgs += @('--exclude-module', $module) }
   $pyArgs += $entry
