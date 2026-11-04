@@ -54,6 +54,9 @@ pub fn timeout_for(method: &str) -> Duration {
         "lab.uninstall_model" | "lab.uninstall_whisper" => Duration::from_secs(120),
         "lab.transcribe" => Duration::from_secs(1800),
         "lab.run" => Duration::from_secs(120),
+        "components.action" | "micromamba.install" | "micromamba.uninstall"
+        | "micromamba.create_env" | "micromamba.remove_env" => Duration::from_secs(7200),
+        "components.list" | "micromamba.status" | "micromamba.verify" => Duration::from_secs(180),
         "lab.verify" => Duration::from_secs(900),
         _ => Duration::from_secs(30),
     }

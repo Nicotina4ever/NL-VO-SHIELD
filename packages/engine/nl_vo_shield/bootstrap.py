@@ -83,11 +83,20 @@ def _ensure_venv(venv: Path, packages: list[str], torch_cpu: bool = True) -> Pat
     if not python.is_file():
         venv.parent.mkdir(parents=True, exist_ok=True)
         base = str(_bootstrap_python())
+        base_path = Path(base)
+        get_pip = base_path.parent.parent / "get-pip.py"
+        if not get_pip.is_file():
+            get_pip = base_path.parent / "get-pip.py"
+        if not get_pip.is_file():
+            get_pip = venv.parent / "get-pip.py"
+            _download("https://bootstrap.pypa.io/get-pip.py", get_pip)
         try:
-            _run([base, "-m", "venv", str(venv)])
+            _run([base, "-m", "venv", "--without-pip", str(venv)])
         except BootstrapError:
             _run([base, "-m", "pip", "install", "virtualenv"], timeout=1800)
             _run([base, "-m", "virtualenv", str(venv)])
+        vpy = _venv_python(venv)
+        _run([str(vpy), str(get_pip), "--no-warn-script-location"], timeout=1800)
     python = _venv_python(venv)
     marker = venv / ".nlvs-packages.json"
     wanted = sorted(packages + (["torch-cpu"] if torch_cpu else []))
