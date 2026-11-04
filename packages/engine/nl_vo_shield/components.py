@@ -63,12 +63,13 @@ _EXTERNAL = {
         "kind": "protection",
         "threats": ["TTS", "VC"],
         "required": ["protect.py"],
-        "runtime": "runtime/e2e/venv",
+        "runtime": "micromamba/envs/e2e",
         "description": "Protezione E2E-VGuard (componente esterno).",
     },
 }
 
 _BOOTSTRAP_IDS = {"safespeech", "mimic_blocker", "enkidu", "e2e_vguard"}
+_MANUAL = {"e2e_vguard": ["checkpoints/VITS/pretrained_ljs.pth"]}
 
 _LAB_MODELS = [
     ("qwen3-tts-0.6b", "Qwen3-TTS 0.6B", "lab", ["TTS"], "Qwen3-TTS-12Hz-0.6B-Base"),
@@ -119,6 +120,8 @@ class ComponentManager:
         present = all((path / rel).is_file() for rel in spec["required"])
         runtime = self.data_dir / spec["runtime"]
         python = runtime / ("Scripts/python.exe" if os.name == "nt" else "bin/python3")
+        if not python.is_file():
+            python = runtime / ("python.exe" if os.name == "nt" else "bin/python3")
         return {
             "path": str(path),
             "present": present,
@@ -151,7 +154,9 @@ class ComponentManager:
                 "requirements": ", ".join(spec["required"]) + " + runtime",
                 "runtime_present": st["runtime_present"],
                 "description": spec["description"], "bootstrap": cid in _BOOTSTRAP_IDS,
+                "manual_missing": [rel for rel in _MANUAL.get(cid, []) if installed and not (Path(st["path"]) / rel).is_file()],
                 "actions": (["verify", "disable", "uninstall"] if installed else ["install"]) +
+                           (["import_checkpoint"] if installed and any(not (Path(st["path"]) / rel).is_file() for rel in _MANUAL.get(cid, [])) else []) +
                            (["enable"] if installed and not enabled_map.get(cid, True) else []),
             })
         for cid, label, kind, threats, dirname in _LAB_MODELS:
@@ -219,6 +224,19 @@ class ComponentManager:
                 st["independent"] = st["present"] and st["links"] == 0
                 st["operational"] = bool(st["independent"] and st["runtime_present"])
                 return {"id": cid, "action": "verify", "ok": st["operational"], **st}
+            if action == "import_checkpoint":
+                if not local_path:
+                    raise ComponentError("local_path richiesto per il checkpoint")
+                source = Path(local_path).expanduser().resolve()
+                target_file = target / "checkpoints" / "pretrained_ljs.pth"
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                if source.is_file():
+                    shutil.copy2(source, target_file)
+                elif (source / "pretrained_ljs.pth").is_file():
+                    shutil.copy2(source / "pretrained_ljs.pth", target_file)
+                else:
+                    raise ComponentError("pretrained_ljs.pth non trovato nel percorso")
+                return {"id": cid, "action": "import_checkpoint", "copied": True, "path": str(target_file)}
             if action == "uninstall":
                 if not self._is_managed(target):
                     raise ComponentError("Rifiuto di rimuovere un percorso non gestito")

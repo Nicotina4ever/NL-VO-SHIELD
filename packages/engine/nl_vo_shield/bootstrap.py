@@ -156,12 +156,18 @@ MANIFESTS: dict[str, dict[str, Any]] = {
         "source": ("https://github.com/wxzyd123/E2E-VGuard", "f303c1d74d0a0309e397b720baf3b22458d97268"),
         "required": ["protect.py", "E2E_VGuard.py"],
         "runtime": "e2e",
-        "packages": ["numpy<2", "scipy", "soundfile", "librosa", "transformers==4.40.2",
-                     "tokenizers==0.19.1", "huggingface_hub==0.24.7", "gradio", "pytorch-lightning",
-                     "onnx", "onnx2torch", "phonemizer", "cn2an", "pypinyin", "jieba_fast",
-                     "Unidecode", "LangSegment"],
+        "e2e": True,
+        "packages": ["numpy==1.23.4", "scipy==1.10.1", "numba==0.56.4", "librosa==0.9.2",
+                     "transformers==4.40.2", "tokenizers==0.19.1", "huggingface_hub==0.24.7",
+                     "gradio==4.24.0", "pytorch-lightning==2.3.3", "onnx==1.15.0",
+                     "onnx2torch==1.5.11", "phonemizer==3.2.1", "cn2an", "pypinyin",
+                     "jieba_fast", "Unidecode", "soundfile", "PyYAML", "setuptools<81",
+                     "einops", "einops_exts", "ffmpeg-python", "rotary_embedding_torch",
+                     "g2p_en", "opencc", "ko_pron", "g2pk2", "wordsegment", "pyjyutping",
+                     "munch", "chardet", "sentencepiece", "jieba", "tqdm", "Cython",
+                     "git+https://github.com/chameleon-ai/LangSegment-0.3.5-backup.git"],
         "models": [],
-        "verify": "import torch, soundfile, transformers, phonemizer",
+        "verify": "import torch, soundfile, transformers, phonemizer, librosa",
         "manual": ["checkpoints/VITS/pretrained_ljs.pth"],
     },
 }
@@ -190,11 +196,19 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
         if not checkpoint.is_file():
             emit("manual", 15, "Serve pretrained_ljs.pth: importalo dalla GUI")
     emit("runtime", 25, "Creazione ambiente Python isolato")
-    runtime_root = data_dir / "runtime" / spec["runtime"]
-    venv = runtime_root / "venv"
-    python = _ensure_venv(venv, spec["packages"])
+    if spec.get("e2e"):
+        python, venv = _ensure_e2e_runtime(data_dir, spec["packages"], emit)
+    else:
+        runtime_root = data_dir / "runtime" / spec["runtime"]
+        venv = runtime_root / "venv"
+        python = _ensure_venv(venv, spec["packages"])
     emit("verify", 80, "Verifica dipendenze")
     _run([str(python), "-c", spec["verify"]], timeout=300)
+
+    if spec.get("e2e"):
+        emit("models", 84, "Download modelli E2E ufficiali")
+        _run([str(python), "download_models.py"], cwd=component, timeout=7200)
+        _ensure_espeak(component, emit)
 
     for model in spec["models"]:
         target = data_dir / model["target"]
@@ -217,6 +231,14 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
 
 def _patch_e2e(component: Path) -> None:
     """Apply the minimal, documented E2E-VGuard adaptations after download."""
+    toolbox = component / "toolbox.py"
+    if toolbox.is_file():
+        text = toolbox.read_text(encoding="utf-8")
+        text = text.replace('device = torch.device("cuda")',
+                            'device = torch.device(os.environ.get("NLVS_E2E_DEVICE") or ("cuda" if torch.cuda.is_available() else "cpu"))')
+        if "import os" not in text.split("\n\n")[0]:
+            text = "import os\n" + text
+        toolbox.write_text(text, encoding="utf-8")
     e2e = component / "E2E_VGuard.py"
     if e2e.is_file():
         text = e2e.read_text(encoding="utf-8")
@@ -228,6 +250,34 @@ def _patch_e2e(component: Path) -> None:
             'self.encoder_4 = AutoModel.from_pretrained(str(__import__("pathlib").Path(__file__).resolve().parent / "checkpoints" / "wavlm"))',
         )
         e2e.write_text(text, encoding="utf-8")
+    mono = component / "tts_models" / "vits" / "monotonic_align"
+    if mono.is_dir():
+        (mono / "__init__.py").write_text('''import numpy as np
+import torch
+
+
+def maximum_path(neg_cent, mask):
+    device, dtype = neg_cent.device, neg_cent.dtype
+    values = neg_cent.detach().cpu().numpy().astype(np.float32)
+    mask_np = mask.detach().cpu().numpy()
+    paths = np.zeros(values.shape, dtype=np.int32)
+    for b in range(values.shape[0]):
+        t_y = int(mask_np[b, :, 0].sum())
+        t_x = int(mask_np[b, 0, :].sum())
+        value = values[b].copy()
+        path = paths[b]
+        index = t_x - 1
+        for y in range(t_y):
+            for x in range(max(0, t_x + y - t_y), min(t_x, y + 1)):
+                v_cur = -1e9 if x == y else value[y - 1, x]
+                v_prev = (0.0 if y == 0 else -1e9) if x == 0 else value[y - 1, x - 1]
+                value[y, x] += max(v_prev, v_cur)
+        for y in range(t_y - 1, -1, -1):
+            path[y, index] = 1
+            if index != 0 and (index == y or value[y - 1, index] < value[y - 1, index - 1]):
+                index -= 1
+    return torch.from_numpy(paths).to(device=device, dtype=dtype)
+''', encoding="utf-8")
     protect = component / "protect.py"
     if protect.is_file():
         text = protect.read_text(encoding="utf-8")
@@ -236,3 +286,75 @@ def _patch_e2e(component: Path) -> None:
         if "import os" not in text.split("\n\n")[0]:
             text = "import os\n" + text
         protect.write_text(text, encoding="utf-8")
+    toolbox = component / "toolbox.py"
+    if toolbox.is_file():
+        text = toolbox.read_text(encoding="utf-8")
+        text = text.replace('device = torch.device("cuda")',
+                            'device = torch.device(os.environ.get("NLVS_E2E_DEVICE") or ("cuda" if torch.cuda.is_available() else "cpu"))')
+        if "import os" not in text.split("\n\n")[0]:
+            text = "import os\n" + text
+        toolbox.write_text(text, encoding="utf-8")
+    e2e = component / "E2E_VGuard.py"
+    if e2e.is_file():
+        text = e2e.read_text(encoding="utf-8")
+        if "convert(onnx_path)" in text and "import onnx" not in text:
+            text = "import onnx\n" + text
+        text = text.replace("convert(onnx_path)", "convert(onnx.load(onnx_path))")
+        e2e.write_text(text, encoding="utf-8")
+
+
+def _ensure_e2e_runtime(data_dir: Path, packages: list[str], emit) -> tuple[Path, Path]:
+    from .micromamba import MicromambaManager
+    manager = MicromambaManager(data_dir)
+    emit("runtime", 30, "Verifica Micromamba")
+    manager.install()
+    status = manager.status()
+    name = "e2e"
+    if not any(env["name"] == name for env in status["envs"]):
+        emit("runtime", 35, "Creazione ambiente Python 3.10")
+        manager.create_env(name, "3.10")
+    python = manager.envs / name / ("python.exe" if os.name == "nt" else "bin/python3")
+    if not python.is_file():
+        raise BootstrapError("Interprete E2E Python 3.10 non trovato")
+    marker = manager.envs / name / ".nlvs-pip.json"
+    wanted = sorted(packages)
+    try:
+        if json.loads(marker.read_text(encoding="utf-8")) == wanted:
+            return python, manager.envs / name
+    except Exception:
+        pass
+    emit("runtime", 45, "Installazione PyTorch 2.3 CPU e dipendenze E2E")
+    _run([str(python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"],
+         timeout=1800)
+    _run([str(python), "-m", "pip", "install", "torch==2.3.0", "torchaudio==2.3.0",
+          "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cpu"],
+         timeout=7200)
+    _run([str(python), "-m", "pip", "install", *packages], timeout=7200)
+    # Some packages may pull newer torch/numpy; restore the validated E2E pins.
+    _run([str(python), "-m", "pip", "install", "--force-reinstall", "torch==2.3.0", "torchaudio==2.3.0",
+          "torchvision==0.18.0", "--index-url", "https://download.pytorch.org/whl/cpu"], timeout=7200)
+    _run([str(python), "-m", "pip", "install", "--force-reinstall", "numpy==1.23.4", "scipy==1.10.1"],
+         timeout=3600)
+    marker.write_text(json.dumps(wanted), encoding="utf-8")
+    return python, manager.envs / name
+
+
+def _ensure_espeak(component: Path, emit) -> None:
+    target = component / "espeak"
+    if (target / "libespeak-ng.dll").is_file():
+        return
+    if platform.system() != "Windows":
+        raise BootstrapError("eSpeak portabile: estrazione automatica implementata su Windows; su Linux/macOS installare espeak-ng")
+    emit("models", 92, "Preparazione eSpeak locale")
+    with tempfile.TemporaryDirectory(prefix="nlvs-espeak-") as tmp:
+        msi = Path(tmp) / "espeak-ng.msi"
+        _download("https://github.com/espeak-ng/espeak-ng/releases/download/1.52.0/espeak-ng.msi", msi)
+        out = Path(tmp) / "out"
+        _run(["msiexec", "/a", str(msi), "/qn", f"TARGETDIR={out}"], timeout=600)
+        dll = list(out.rglob("libespeak-ng.dll"))
+        data = list(out.rglob("espeak-ng-data"))
+        if not dll or not data:
+            raise BootstrapError("eSpeak non estratto dal pacchetto MSI")
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(dll[0], target / "libespeak-ng.dll")
+        shutil.copytree(data[0], target / "espeak-ng-data", dirs_exist_ok=True)

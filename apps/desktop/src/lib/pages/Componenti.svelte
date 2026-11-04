@@ -120,11 +120,15 @@
         {#if !item.installed && !item.builtin && !item.bootstrap}
           <label class="field"><span>{t("components.install")}</span><input bind:value={paths[item.id]} placeholder="C:\\percorso\\componente" /></label>
         {/if}
+        {#if item.actions.includes("import_checkpoint")}
+          <label class="field"><span>pretrained_ljs.pth</span><input bind:value={paths[item.id]} placeholder="C:\\percorso\\pretrained_ljs.pth" /></label>
+        {/if}
         <div class="actions">
           {#if item.actions.includes("install")}<button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>{item.bootstrap ? t("micromamba.install") : t("components.install")}</button>{/if}
           {#if item.actions.includes("verify")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "verify")}>{t("components.verify")}</button>{/if}
           {#if item.actions.includes("enable")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "enable")}>{t("components.enable")}</button>{/if}
           {#if item.actions.includes("disable")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "disable")}>{t("components.disable")}</button>{/if}
+          {#if item.actions.includes("import_checkpoint")}<button class="btn" disabled={busy === item.id} onclick={() => act(item, "import_checkpoint")}>{t("components.install")}</button>{/if}
           {#if item.actions.includes("uninstall")}<button class="btn btn--danger" disabled={busy === item.id} onclick={() => act(item, "uninstall")}>{t("components.uninstall")}</button>{/if}
         </div>
       </section>

@@ -300,6 +300,8 @@ export interface ComponentInfo {
   requirements: string;
   description: string;
   actions: string[];
+  bootstrap?: boolean;
+  manual_missing?: string[];
 }
 
 
