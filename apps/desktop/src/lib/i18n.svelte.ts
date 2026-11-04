@@ -106,6 +106,7 @@ const it: Dict = {
   "components.title": "Componenti e motori",
   "components.subtitle": "Installa, configura, abilita o rimuovi ogni componente dell'applicazione.",
   "components.install": "Importa copia locale",
+  "components.installAll": "Installa tutto",
   "components.uninstall": "Disinstalla",
   "components.enable": "Abilita",
   "components.disable": "Disabilita",
@@ -1149,6 +1150,7 @@ const en: Dict = {
   "components.title": "Components and engines",
   "components.subtitle": "Install, configure, enable or remove every application component.",
   "components.install": "Import local copy",
+  "components.installAll": "Install all",
   "components.uninstall": "Uninstall",
   "components.enable": "Enable",
   "components.disable": "Disable",
@@ -2146,4 +2148,5 @@ export function hostErrorMessage(err: { code?: string; message?: string } | null
   if (err.code && it[`errors.${err.code}`]) return t(`errors.${err.code}`);
   return err.message ?? t("common.unknownError");
 }
+
 

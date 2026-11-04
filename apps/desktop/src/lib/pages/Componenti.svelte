@@ -80,6 +80,14 @@
     }
   }
 
+  async function installAll(): Promise<void> {
+    const external = items.filter((item) => !item.builtin && item.actions.includes("install"));
+    for (const item of external) {
+      paths[item.id] = "";
+      await act(item, "install");
+    }
+  }
+
   onMount(() => { void refresh(); void refreshMm(); });
 </script>
 
@@ -89,7 +97,10 @@
       <h1>{t("components.title")}</h1>
       <p>{t("components.subtitle")}</p>
     </div>
-    <span class="badge">{formatBytes(total)}</span>
+    <div class="row gap-sm">
+      <button class="btn btn--primary" disabled={busy !== null} onclick={() => void installAll()}>{t("components.installAll")}</button>
+      <span class="badge">{formatBytes(total)}</span>
+    </div>
   </div>
 
   <section class="card" style="margin-bottom:14px">

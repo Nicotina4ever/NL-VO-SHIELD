@@ -179,6 +179,8 @@ MANIFESTS: dict[str, dict[str, Any]] = {
                      "git+https://github.com/chameleon-ai/LangSegment-0.3.5-backup.git"],
         "models": [],
         "verify": "import torch, soundfile, transformers, phonemizer, librosa",
+        "gdrive": {"url": "https://drive.google.com/drive/folders/1ksarh-cJf3F5eKJjLVWY0X1j1qsQqiS2",
+                   "file": "pretrained_ljs.pth"},
         "manual": ["checkpoints/VITS/pretrained_ljs.pth"],
     },
 }
@@ -226,6 +228,7 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
         emit("models", 84, "Download modelli E2E ufficiali")
         _run([str(python), "download_models.py"], cwd=component, timeout=7200)
         _ensure_espeak(component, emit)
+        _ensure_gdrive(component, python, spec, emit)
 
     for model in spec["models"]:
         target = data_dir / model["target"]
@@ -419,3 +422,27 @@ def _ensure_mamba_env(data_dir: Path, prefix: Path, packages: list[str], emit) -
     _run([str(python), "-m", "pip", "install", "--force-reinstall", "numpy<2", "scipy<1.14"], timeout=3600)
     marker.write_text(json.dumps(wanted), encoding="utf-8")
     return python
+
+
+def _ensure_gdrive(component: Path, python: Path, spec: dict[str, Any], emit) -> None:
+    gd = spec.get("gdrive")
+    if not gd:
+        return
+    wanted = gd["file"]
+    targets = [component / "checkpoints" / wanted, component / "checkpoints" / "VITS" / wanted]
+    if any(t.is_file() for t in targets):
+        return
+    emit("models", 95, "Download checkpoint Google Drive")
+    _run([str(python), "-m", "pip", "install", "gdown"], timeout=1800)
+    with tempfile.TemporaryDirectory(prefix="nlvs-gdrive-") as tmp:
+        target = Path(tmp) / "download"
+        _run([str(python), "-m", "gdown", "--folder", gd["url"], "-O", str(target)], timeout=7200)
+        found = None
+        for candidate in Path(tmp).rglob(wanted):
+            found = candidate
+            break
+        if found is None:
+            raise BootstrapError("Checkpoint Google Drive non trovato: " + wanted)
+        for target_file in targets:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(found, target_file)
