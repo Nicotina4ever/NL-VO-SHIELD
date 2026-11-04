@@ -209,7 +209,8 @@ class ComponentManager:
             if action == "verify":
                 st = self._external_status(cid, spec)
                 st["independent"] = st["present"] and st["links"] == 0
-                return {"id": cid, "action": "verify", "ok": st["independent"], **st}
+                st["operational"] = bool(st["independent"] and st["runtime_present"])
+                return {"id": cid, "action": "verify", "ok": st["operational"], **st}
             if action == "uninstall":
                 if not self._is_managed(target):
                     raise ComponentError("Rifiuto di rimuovere un percorso non gestito")
