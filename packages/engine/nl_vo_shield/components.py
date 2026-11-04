@@ -259,6 +259,27 @@ class ComponentManager:
                         "source": str(source)}
             if not target.exists() or target.is_symlink() or self._is_reparse(target):
                 raise ComponentError("Componente non installato")
+            if action == "repair":
+                from .bootstrap import install as bootstrap_install
+                job_id = uuid.uuid4().hex
+                with _JOBS_LOCK:
+                    _JOBS[job_id] = {"job_id": job_id, "component": cid, "status": "running",
+                                     "stage": "queued", "percent": 0, "message": "Riparazione in coda", "logs": []}
+                def _repair(job_id: str = job_id, cid: str = cid) -> None:
+                    try:
+                        with _INSTALL_LOCK:
+                            result = bootstrap_install(self.data_dir, cid,
+                                lambda st, pc, msg: _JOBS[job_id].update(stage=st, percent=int(pc), message=msg),
+                                force=True)
+                        st = self._state(); en = st.setdefault("enabled", {}); en[cid] = True; self._write(st)
+                        with _JOBS_LOCK:
+                            _JOBS[job_id].update(status="done", percent=100, stage="done", message="Riparato",
+                                                 result={"runtime": result.get("runtime")})
+                    except Exception as exc:
+                        with _JOBS_LOCK:
+                            _JOBS[job_id].update(status="error", message=str(exc), stage="error")
+                threading.Thread(target=_repair, daemon=True).start()
+                return {"id": cid, "action": "repair", "job_id": job_id, "status": "running"}
             if action == "verify":
                 st = self._external_status(cid, spec)
                 st["independent"] = st["present"] and st["links"] == 0

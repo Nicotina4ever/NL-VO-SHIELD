@@ -186,14 +186,14 @@ MANIFESTS: dict[str, dict[str, Any]] = {
 }
 
 
-def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] | None = None) -> dict[str, Any]:
+def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] | None = None, force: bool = False) -> dict[str, Any]:
     data_dir = Path(data_dir)
     spec = MANIFESTS.get(cid)
     if spec is None:
         raise BootstrapError(f"Nessun manifest bootstrap per {cid}")
     emit = progress or (lambda *_args: None)
     component = data_dir / "components" / cid
-    if component.exists() and (component / ".nlvs-bootstrap.json").is_file():
+    if component.exists() and (component / ".nlvs-bootstrap.json").is_file() and not force:
         raise BootstrapError("Componente già presente; rimuoverlo prima")
     url, commit = spec["source"]
     emit("source", 5, f"Download sorgente {cid}")

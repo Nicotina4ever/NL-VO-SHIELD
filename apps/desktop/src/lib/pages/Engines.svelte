@@ -60,10 +60,24 @@
     }
   }
 
+  async function uninstallEngine(id: string): Promise<void> {
+    if (!confirm(t("components.confirm"))) return;
+    installing = id;
+    try {
+      await componentsApi.action({ id, action: "uninstall", confirmed: true });
+      await refreshEngines();
+      await loadComponents();
+      toast("ok", t("components.uninstall"), id);
+    } catch (err) {
+      toast("err", t("components.uninstall"), hostErrorMessage(err as { code?: string; message?: string }));
+    } finally { installing = null; }
+  }
+
   async function installEngine(id: string): Promise<void> {
     installing = id;
     try {
-      await componentsApi.action({ id, action: "install", confirmed: true });
+      const action = components[id]?.installed ? "repair" : "install";
+      await componentsApi.action({ id, action, confirmed: true });
       await refreshEngines();
       await loadComponents();
       toast("ok", t("components.install"), id);
@@ -392,7 +406,7 @@
   </div>
 
   {#if componentError}<div class="warn-box small">{componentError}</div>{/if}
-  <div class="card">
+  <div class="card" hidden>
     <div class="card__head">
       <h2>{t("engines.rec.title")}</h2>
     </div>
@@ -482,8 +496,18 @@
               <span class="engine-card__title">{item.name}</span>
               <span class="engine-card__sub">{item.id} · {t("engines.versionLine", { v: item.version })}</span>
             </div>
-            <Badge label={statusLabel(item.status)} tone={engineStatusTone(item.status)} />
+            <Badge label={statusLabel(engineComponentState(item))} tone={engineStatusTone(engineComponentState(item))} />
           </div>
+          {#if components[item.id] && !components[item.id].builtin}
+            <div class="row gap-sm" style="margin:6px 0">
+              <button class="btn btn--primary btn--sm" disabled={installing !== null} onclick={() => void installEngine(item.id)}>
+                {installing === item.id ? t("common.running") : (components[item.id].installed ? t("components.repair") : t("components.install"))}
+              </button>
+              {#if components[item.id].installed}
+                <button class="btn btn--danger btn--sm" disabled={installing !== null} onclick={() => void uninstallEngine(item.id)}>{t("components.uninstall")}</button>
+              {/if}
+            </div>
+          {/if}
 
           <div class="row gap-sm">
             <span class="chip">{kindLabel(item.kind)}</span>
