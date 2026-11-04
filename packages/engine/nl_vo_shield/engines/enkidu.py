@@ -115,7 +115,7 @@ class EnkiduEngine(BaseEngine):
             raise EngineUnavailable(reason or "Enkidu unavailable")
         assert self._directory and self._python() and self._runner() and self._ecapa()
         steps = int(params.get("steps", 10))
-        target_snr = float(params.get("target_snr_db", 20.0))
+        target_snr = float(params.get("target_snr_db", 24.0))
         target_snr = max(6.0, min(40.0, target_snr))
         noise_level = float(params.get("noise_level", 0.1))
         mask_ratio = float(params.get("mask_ratio", 0.3))

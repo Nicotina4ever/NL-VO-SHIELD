@@ -28,7 +28,7 @@ def main() -> int:
     parser.add_argument("--steps", type=int, default=10)
     parser.add_argument("--noise-level", type=float, default=0.1)
     parser.add_argument("--mask-ratio", type=float, default=0.3)
-    parser.add_argument("--target-snr-db", type=float, default=20.0)
+    parser.add_argument("--target-snr-db", type=float, default=24.0)
     args = parser.parse_args()
 
     sys.path.insert(0, str(Path(args.enkidu_dir).resolve()))
