@@ -354,6 +354,9 @@ if (-not $SkipPyInstaller) {
   $frozenDir = Join-Path $engineDir 'frozen'
   $excludeModules = @('torch', 'torchaudio', 'torchvision', 'audioseal', 'transformers', 'matplotlib', 'IPython', 'notebook', 'tkinter')
   if ($WithAudioSeal) { $excludeModules = @('matplotlib', 'IPython', 'notebook', 'tkinter') }
+  $addEnkidu = (Join-Path $engineSrc 'nl_vo_shield\enkidu_runner.py') + ';nl_vo_shield'
+  $addMimic = (Join-Path $engineSrc 'nl_vo_shield\mimic_runner.py') + ';nl_vo_shield'
+  $addSafe = (Join-Path $engineSrc 'nl_vo_shield\safespeech_runner.py') + ';nl_vo_shield'
   $pyArgs = @(
     '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--console',
     '--name', 'nlvo-engine',
@@ -362,9 +365,9 @@ if (-not $SkipPyInstaller) {
     '--specpath', $cacheDir,
     '--paths', $engineSrc,
     '--collect-submodules', 'nl_vo_shield',
-    '--add-data', (Join-Path $engineSrc 'nl_vo_shield\enkidu_runner.py') + ';nl_vo_shield',
-    '--add-data', (Join-Path $engineSrc 'nl_vo_shield\mimic_runner.py') + ';nl_vo_shield',
-    '--add-data', (Join-Path $engineSrc 'nl_vo_shield\safespeech_runner.py') + ';nl_vo_shield',
+    '--add-data', $addEnkidu,
+    '--add-data', $addMimic,
+    '--add-data', $addSafe
   )
   foreach ($module in $excludeModules) { $pyArgs += @('--exclude-module', $module) }
   $pyArgs += $entry
@@ -509,3 +512,4 @@ Write-Log OK "engine payload ready: $engineDir ($(Format-Size $total))"
 Write-Log INFO "manifest: $(Join-Path $engineDir 'build-manifest.json')"
 Write-Log INFO "log: $($script:LogFile)"
 exit 0
+

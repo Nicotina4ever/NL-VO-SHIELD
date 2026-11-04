@@ -52,5 +52,6 @@ Write-Host ("[bootstrap] embedded Python ready: {0} ({1:N1} MB)" -f $Destination
 
 
 # Ensure pip/site-packages are importable in embedded builds.
-Get-ChildItem (Join-Path  'python') -Filter '*._pth' -Recurse -ErrorAction SilentlyContinue | ForEach-Object { (Get-Content $_.FullName) -replace '^#import site','import site' | Set-Content $_.FullName }
+Get-ChildItem (Join-Path $Destination 'python') -Filter '*._pth' -Recurse -ErrorAction SilentlyContinue | ForEach-Object { (Get-Content $_.FullName) -replace '^#import site','import site' | Set-Content $_.FullName }
+
 
