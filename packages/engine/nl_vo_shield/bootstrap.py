@@ -195,6 +195,12 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
         checkpoint = component / "checkpoints" / "VITS" / "pretrained_ljs.pth"
         if not checkpoint.is_file():
             emit("manual", 15, "Serve pretrained_ljs.pth: importalo dalla GUI")
+    # The app ships the thin runners; keep a copy inside the managed component
+    # so a frozen build does not depend on package layout.
+    for runner in ("enkidu_runner.py", "mimic_runner.py", "safespeech_runner.py"):
+        candidate = Path(__file__).resolve().parent / runner
+        if candidate.is_file():
+            shutil.copy2(candidate, component / runner)
     emit("runtime", 25, "Creazione ambiente Python isolato")
     if spec.get("e2e"):
         python, venv = _ensure_e2e_runtime(data_dir, spec["packages"], emit)
