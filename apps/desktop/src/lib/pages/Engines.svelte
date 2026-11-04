@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui } from "../ui.svelte";
+  import { ui, toast } from "../ui.svelte";
   import { onMount } from "svelte";
   import { t, hostErrorMessage } from "../i18n.svelte";
   import { goToModels } from "../ui.svelte";
@@ -10,7 +10,7 @@
     modelsForEngine,
     engineWeightsState,
   } from "../engine.svelte";
-  import { engineApi, aiApi, type AiRuntimeStatus } from "../ipc";
+  import { engineApi, aiApi, componentsApi, type AiRuntimeStatus } from "../ipc";
   import { engineStatusTone, formatBytes } from "../format";
   import type { EngineInfo, InstallHint, ModelInfo } from "../types";
   import Icon from "../components/Icon.svelte";
@@ -22,6 +22,21 @@
   let hintLoading = $state(false);
   let hintError = $state<string | null>(null);
   let detailsEngine = $state<EngineInfo | null>(null);
+  let installing = $state<string | null>(null);
+  const BOOTSTRAP_IDS = new Set(["safespeech", "mimic_blocker", "enkidu", "e2e_vguard"]);
+
+  async function installEngine(id: string): Promise<void> {
+    installing = id;
+    try {
+      await componentsApi.action({ id, action: "install", confirmed: true });
+      await refreshEngines();
+      toast("ok", t("components.install"), id);
+    } catch (err) {
+      toast("err", t("components.install"), hostErrorMessage(err as { code?: string; message?: string }));
+    } finally {
+      installing = null;
+    }
+  }
 
   let aiRuntime = $state<AiRuntimeStatus | null>(null);
   let aiError = $state<string | null>(null);
@@ -395,6 +410,11 @@
                 >
                   {t("engines.installHint")}
                 </button>
+                {#if BOOTSTRAP_IDS.has(rec.id) && rec.status === "unavailable"}
+                  <button class="btn btn--primary btn--sm" disabled={installing !== null} onclick={() => void installEngine(rec.id)}>
+                    {installing === rec.id ? t("common.running") : t("components.install")}
+                  </button>
+                {/if}
                 <button class="btn btn--ghost btn--sm" onclick={goToModels}>
                   {t("engines.manageModels")}
                 </button>

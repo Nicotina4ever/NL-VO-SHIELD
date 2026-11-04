@@ -115,6 +115,8 @@ def _ensure_venv(venv: Path, packages: list[str], torch_cpu: bool = True) -> Pat
         _run([str(python), "-m", "pip", "install", *normal], timeout=7200)
     if any(p.startswith("speechbrain") for p in packages):
         _run([str(python), "-m", "pip", "install", "--no-deps", "speechbrain==1.0.0"], timeout=1800)
+        _run([str(python), "-m", "pip", "install", "hyperpyyaml", "ruamel.yaml", "sentencepiece",
+              "joblib", "packaging"], timeout=1800)
     marker.write_text(json.dumps(wanted), encoding="utf-8")
     return python
 
@@ -125,7 +127,7 @@ MANIFESTS: dict[str, dict[str, Any]] = {
         "required": ["core/enkidu.py"],
         "runtime": "ai",
         "packages": ["numpy<2", "scipy<1.14", "soundfile", "librosa", "transformers==4.46.3",
-                     "huggingface_hub>=0.30", "speechbrain==1.0.0", "safetensors"],
+                     "huggingface_hub>=0.30", "speechbrain==1.0.0", "safetensors", "hyperpyyaml", "ruamel.yaml", "sentencepiece", "joblib", "packaging"],
         "models": [{"kind": "hf_snapshot", "repo": "speechbrain/spkrec-ecapa-voxceleb",
                     "target": "upstream_assets/shared/ECAPA"}],
         "verify": "import torch, soundfile, librosa, speechbrain",
@@ -216,7 +218,7 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
     else:
         runtime_root = data_dir / "runtime" / spec["runtime"]
         venv = runtime_root / "venv"
-        python = _ensure_venv(venv, spec["packages"])
+        python = _ensure_mamba_env(data_dir, venv, spec["packages"], emit)
     emit("verify", 80, "Verifica dipendenze")
     _run([str(python), "-c", spec["verify"]], timeout=300)
 
@@ -235,7 +237,7 @@ def install(data_dir: Path, cid: str, progress: Callable[[str, int, str], None] 
             if not (target / "embedding_model.ckpt").is_file():
                 emit("models", 85, f"Download {model['repo']}")
                 files = ["hyperparams.yaml", "embedding_model.ckpt", "classifier.ckpt",
-                         "label_encoder.ckpt", "mean_var_norm_emb.ckpt"]
+                         "label_encoder.txt", "mean_var_norm_emb.ckpt", "config.json"]
                 for filename in files:
                     _download(f"{HF}/{model['repo']}/resolve/main/{filename}", target / filename)
             if not (target / "embedding_model.ckpt").is_file():
@@ -376,3 +378,44 @@ def _ensure_espeak(component: Path, emit) -> None:
         target.mkdir(parents=True, exist_ok=True)
         shutil.copy2(dll[0], target / "libespeak-ng.dll")
         shutil.copytree(data[0], target / "espeak-ng-data", dirs_exist_ok=True)
+
+
+def _ensure_mamba_env(data_dir: Path, prefix: Path, packages: list[str], emit) -> Path:
+    """Create a real Micromamba Python environment (no embedded get-pip/venv)."""
+    from .micromamba import MicromambaManager
+    manager = MicromambaManager(data_dir)
+    manager.install()
+    if platform.system() == "Windows":
+        python = prefix / "python.exe"
+    else:
+        python = prefix / "bin" / "python3"
+    marker = prefix / ".nlvs-mamba-packages.json"
+    wanted = sorted(packages)
+    try:
+        if python.is_file() and json.loads(marker.read_text(encoding="utf-8")) == wanted:
+            return python
+    except Exception:
+        pass
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    if not python.is_file():
+        emit("runtime", 30, "Micromamba crea ambiente Python")
+        command = [str(manager.binary), "create", "-y", "-p", str(prefix), "python=3.11", "pip"]
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=3600,
+                                   env={**os.environ, "MAMBA_ROOT_PREFIX": str(manager.root)})
+        if completed.returncode != 0:
+            raise BootstrapError("Creazione ambiente Micromamba fallita: " + (completed.stderr or completed.stdout)[-2000:])
+    python = prefix / ("python.exe" if platform.system() == "Windows" else "bin/python3")
+    emit("runtime", 50, "Installazione dipendenze nell'ambiente Micromamba")
+    _run([str(python), "-m", "pip", "install", "--upgrade", "pip", "setuptools<81", "wheel"], timeout=1800)
+    _run([str(python), "-m", "pip", "install", "torch==2.3.1", "torchaudio==2.3.1",
+          "--index-url", "https://download.pytorch.org/whl/cpu"], timeout=7200)
+    normal = [p for p in packages if not p.startswith("speechbrain")]
+    if normal:
+        _run([str(python), "-m", "pip", "install", *normal], timeout=7200)
+    if any(p.startswith("speechbrain") for p in packages):
+        _run([str(python), "-m", "pip", "install", "--no-deps", "speechbrain==1.0.0"], timeout=1800)
+        _run([str(python), "-m", "pip", "install", "hyperpyyaml", "ruamel.yaml", "sentencepiece",
+              "joblib", "packaging"], timeout=1800)
+    _run([str(python), "-m", "pip", "install", "--force-reinstall", "numpy<2", "scipy<1.14"], timeout=3600)
+    marker.write_text(json.dumps(wanted), encoding="utf-8")
+    return python

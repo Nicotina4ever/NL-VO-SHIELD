@@ -89,6 +89,7 @@ class SafeSpeechEngine(BaseEngine):
         candidates = [Path(override).expanduser()] if override else []
         candidates += [
             self._data_dir() / "runtime" / "safespeech" / "venv" / "Scripts" / "python.exe",
+            self._data_dir() / "runtime" / "safespeech" / "venv" / "python.exe",
             self._data_dir() / "runtime" / "safespeech" / "venv" / "bin" / "python3",
         ]
         for candidate in candidates:

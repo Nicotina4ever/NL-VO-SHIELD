@@ -91,6 +91,7 @@ class MimicBlockerEngine(BaseEngine):
         candidates = [Path(override).expanduser()] if override else []
         candidates += [
             self._data_dir() / "runtime" / "ai" / "venv" / "Scripts" / "python.exe",
+            self._data_dir() / "runtime" / "ai" / "venv" / "python.exe",
             self._data_dir() / "runtime" / "ai" / "venv" / "bin" / "python3",
         ]
         for candidate in candidates:
