@@ -36,6 +36,10 @@ class AppContext:
         self.cache.ensure()
         self._apply_environment(self.settings)
         self.safespeech_dir = paths.find_safespeech_dir()
+        if self.safespeech_dir is None:
+            component = self.data_dir / "components" / "safespeech"
+            if (component / "protect.py").is_file():
+                self.safespeech_dir = component
         self.models = ModelStore(self.settings["models_dir"], safespeech_dir=self.safespeech_dir)
         self.receipts = ReceiptStore(self.data_dir)
         self.profiles = ProfileStore(self.data_dir)

@@ -92,11 +92,7 @@ MODEL_SPECS: tuple[ModelSpec, ...] = (
             "checkpoints/base_models/DUR_0.pth",
             "checkpoints/base_models/D_0.pth",
         ),
-        reason=(
-            "SafeSpeech weights are incomplete in this environment (only DUR_0.pth is present, "
-            "D_0.pth missing) and are never downloaded automatically. Install the full research "
-            "checkpoint set manually to enable this engine."
-        ),
+        reason="SafeSpeech checkpoints are managed by the component manager (Components > SafeSpeech > Installa/Ripara).",
     ),
 )
 
