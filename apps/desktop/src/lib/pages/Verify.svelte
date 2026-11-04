@@ -139,7 +139,7 @@
   });
 </script>
 
-<div class="page">
+<div class="page mode-{ui.viewMode}">
   <div class="page-head">
     <div class="page-head__text">
       <h1>{t("verify.title")}</h1>
@@ -207,7 +207,7 @@
   </div>
 
   {#if result}
-    <div class="grid grid-2">
+    <div class="grid grid-2 expert-only">
       <div class="card">
         <div class="card__head">
           <h2>{t("verify.watermark")}</h2>
@@ -337,7 +337,7 @@
     </div>
   {/if}
 
-  <div class="grid grid-2">
+  <div class="grid grid-2 expert-only">
     <div class="card">
       <div class="card__head">
         <h2>{t("verify.quality")}</h2>

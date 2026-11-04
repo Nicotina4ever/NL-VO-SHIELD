@@ -1784,3 +1784,6 @@ textarea {
 }
 .mode-simple .expert-only { display: none !important; }
 
+
+.mode-expert .advanced-only, .mode-simple .advanced-only { display: none !important; }
+

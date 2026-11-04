@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { engineStateLabel, t, hostErrorMessage } from "../i18n.svelte";
-  import { ui, toast, goVerify } from "../ui.svelte";
+  import { ui, toast, goVerify, navigate } from "../ui.svelte";
   import {
     engine,
     loadProfiles,
@@ -360,6 +360,41 @@
     </div>
   </div>
 
+  {#if ui.viewMode === "simple"}
+    <div class="card" style="margin-bottom:14px;border-color:var(--nl-accent)">
+      <div class="card__body col" style="gap:14px">
+        <div class="row gap-sm" style="align-items:center">
+          <span class="badge badge--brand">1</span>
+          <div><div class="bold">{t("protect.inputFile")}</div><div class="small muted">{t("protect.dropHint")}</div></div>
+          <span class="spacer"></span>
+          <button class="btn btn--primary" onclick={() => void pickInput()}>{t("common.chooseFile")}</button>
+        </div>
+        <div class="row gap-sm" style="align-items:center">
+          <span class="badge badge--brand">2</span>
+          <div><div class="bold">{t("protect.preset")}</div><div class="small muted">{t(preset.descKey)}</div></div>
+        </div>
+        <div class="row gap-sm" style="align-items:center">
+          <span class="badge badge--brand">3</span>
+          <div><div class="bold">{t("protect.startProtection")}</div><div class="small muted">{t("protect.qualityHint")}</div></div>
+          <span class="spacer"></span>
+          <button class="btn btn--primary" onclick={() => void start()} disabled={!canStart}>{t("protect.startProtection")}</button>
+        </div>
+        {#if blockedReasons.length > 0}
+          <div class="warn-box">
+            <div class="warn-box__title">{t("protect.engineUnavailable")}</div>
+            <ul class="small" style="margin:6px 0;padding-left:18px">
+              {#each blockedReasons as item}<li>{item.engine}: {item.reason}</li>{/each}
+            </ul>
+            <button class="btn btn--sm" onclick={() => navigate("components")}>{t("components.title")}</button>
+          </div>
+        {/if}
+        {#if chain.map((s) => s.engine).includes("c2pa") === false}
+          <div class="small muted">{t("protect.warnNoC2pa")}</div>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   <div class="split">
     <div class="col" style="gap:16px">
       <div class="card">
@@ -460,9 +495,9 @@
             <span class="spacer"></span>
             <span class="small faint mono">{describeChain(chain).join(" → ") || "—"}</span>
           </div>
-          <p class="small muted" style="margin:4px 0 10px">{t("protect.chainOrderHint")}</p>
+          {#if ui.viewMode !== "simple"}<p class="small muted" style="margin:4px 0 10px">{t("protect.chainOrderHint")}</p>{/if}
 
-          <div class="col" style="gap:6px">
+          <div class="col expert-only" style="gap:6px">
             {#each orderedSelections() as selection (selection.engine)}
               {@const info = engine.engines.find((item) => item.id === selection.engine)}
               <div class="list-row">
@@ -824,4 +859,5 @@
     </div>
   </div>
 </div>
+
 

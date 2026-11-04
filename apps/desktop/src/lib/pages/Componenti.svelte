@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import { ui } from "../ui.svelte";
   import { onMount } from "svelte";
   import { t } from "../i18n.svelte";
   import { toast } from "../ui.svelte";
@@ -69,7 +70,7 @@
   onMount(() => { void refresh(); void refreshMm(); });
 </script>
 
-<div class="page">
+<div class="page mode-{ui.viewMode}">
   <div class="page-head">
     <div class="page-head__text">
       <h1>{t("components.title")}</h1>

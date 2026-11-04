@@ -1,7 +1,7 @@
 {
   "name": "nl-vo-shield-desktop",
   "private": true,
-  "version": "1.2.4",
+  "version": "1.2.5",
   "type": "module",
   "description": "NL VO Shield desktop shell (Tauri 2 + Svelte 5): UI for the Python engine core.",
   "author": "Nicola Lanci",

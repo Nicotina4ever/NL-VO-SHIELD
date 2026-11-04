@@ -288,6 +288,8 @@ const it: Dict = {
   "dashboard.platform": "Piattaforma",
 
   "protect.title": "Proteggi",
+  "protect.startProtection": "Proteggi ora",
+  "protect.qualityHint": "Controlla qualità e ascolta il risultato prima di salvare.",
   "protect.subtitle":
     "Applica una catena reale e tracciabile: anti-clonazione, watermark e provenance C2PA. L'originale non viene mai modificato.",
   "protect.inputFile": "File di input",
@@ -1328,6 +1330,8 @@ const en: Dict = {
   "dashboard.platform": "Platform",
 
   "protect.title": "Protect",
+  "protect.startProtection": "Protect now",
+  "protect.qualityHint": "Check quality and listen before saving.",
   "protect.subtitle":
     "Apply a real, traceable chain: anti-cloning, watermark and C2PA provenance. The original file is never modified.",
   "protect.inputFile": "Input file",

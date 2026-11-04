@@ -205,7 +205,7 @@
   });
 </script>
 
-<div class="page">
+<div class="page mode-{ui.viewMode}">
   <div class="page-head">
     <div class="page-head__text">
       <h1>{t("batch.title")}</h1>
@@ -308,7 +308,7 @@
               {chain.map((step) => `${step.engine}.${step.action}`).join(" → ") || "—"}
             </span>
           </div>
-          <div class="col" style="gap:4px;margin-top:6px">
+          <div class="col expert-only" style="gap:4px;margin-top:6px">
             {#each chainEngines as item (item.id)}
               {@const role = roleForKind(item.kind)}
               {#if role}
@@ -343,7 +343,7 @@
             </div>
           {/if}
 
-          <div class="grid grid-2" style="gap:12px;margin-top:12px">
+          <div class="grid grid-2 expert-only" style="gap:12px;margin-top:12px">
             <div class="field">
               <label for="batch-strength">{t("protect.strength")}</label>
               <select id="batch-strength" class="select" bind:value={strength}>

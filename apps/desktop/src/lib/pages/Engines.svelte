@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ui } from "../ui.svelte";
   import { onMount } from "svelte";
   import { t, hostErrorMessage } from "../i18n.svelte";
   import { goToModels } from "../ui.svelte";
@@ -274,7 +275,7 @@
   });
 </script>
 
-<div class="page">
+<div class="page mode-{ui.viewMode}">
   <div class="page-head">
     <div class="page-head__text">
       <h1>{t("engines.title")}</h1>

@@ -6,6 +6,7 @@
    * espone ancora i metodi, mostra lo stato reale ("Installabile" + motivo)
    * e consente di preparare file/modelli senza vicoli ciechi.
    */
+  import { ui } from "../ui.svelte";
   import { onDestroy, onMount } from "svelte";
   import { hostErrorMessage, t } from "../i18n.svelte";
   import { toast } from "../ui.svelte";
@@ -599,7 +600,7 @@
   });
 </script>
 
-<div class="page">
+<div class="page mode-{ui.viewMode}">
   <div class="page-head">
     <div class="page-head__text">
       <h1>{t("lab.title")}</h1>
@@ -813,7 +814,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card advanced-only">
         <div class="card__head">
           <h2>{t("lab.log.title")}</h2>
           <span class="spacer"></span>
@@ -918,7 +919,7 @@
     </div>
 
     <div class="col">
-      <section class="card">
+      <section class="card expert-only">
         <div class="card__head">
           <h2>{t("lab.model.title")}</h2>
           <span class="spacer"></span>
