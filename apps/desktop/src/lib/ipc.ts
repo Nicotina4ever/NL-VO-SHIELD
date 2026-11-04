@@ -280,6 +280,11 @@ export const labApi = {
 };
 
 
+export const componentsJobsApi = {
+  jobs: () => call<{ jobs: any[] }>("components_jobs"),
+  job: (jobId: string) => call<{ job: any }>("components_job", { jobId }),
+};
+
 export const componentsApi = {
   list: () => call<{ items: ComponentInfo[]; total_bytes: number }>("components_list"),
   action: (request: { id: string; action: string; localPath?: string | null; confirmed?: boolean }) =>

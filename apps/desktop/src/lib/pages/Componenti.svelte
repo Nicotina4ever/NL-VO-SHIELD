@@ -4,7 +4,7 @@
   import { t } from "../i18n.svelte";
   import { toast } from "../ui.svelte";
   import { refreshEngines } from "../engine.svelte";
-  import { componentsApi, micromambaApi, type ComponentInfo, type MicromambaStatus } from "../ipc";
+  import { componentsApi, componentsJobsApi, micromambaApi, type ComponentInfo, type MicromambaStatus } from "../ipc";
   import { formatBytes } from "../format";
 
   let items = $state<ComponentInfo[]>([]);
@@ -14,6 +14,7 @@
   let mm = $state<MicromambaStatus | null>(null);
   let envName = $state("e2e");
   let mmBusy = $state(false);
+  let progress = $state<{ id: string; pct: number; msg: string } | null>(null);
 
   async function refresh() {
     try {
@@ -38,8 +39,20 @@
     }
     busy = item.id;
     try {
-      await componentsApi.action({ id: item.id, action, localPath: local, confirmed: action === "install" || action === "uninstall" });
-      toast("ok", item.label, action);
+      const result = await componentsApi.action({ id: item.id, action, localPath: local, confirmed: action === "install" || action === "uninstall" });
+      if (result && (result as any).job_id) {
+        const jobId = String((result as any).job_id);
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 1200));
+          const { job } = await componentsJobsApi.job(jobId);
+          progress = { id: item.id, pct: Number(job.percent ?? 0), msg: String(job.message ?? job.stage ?? "") };
+          if (job.status === "done") { toast("ok", item.label, action); break; }
+          if (job.status === "error") { toast("err", item.label, String(job.message ?? "errore")); break; }
+        }
+        progress = null;
+      } else {
+        toast("ok", item.label, action);
+      }
       await refresh();
       await refreshEngines();
     } catch (err) {
@@ -122,6 +135,10 @@
         {/if}
         {#if item.actions.includes("import_checkpoint")}
           <label class="field"><span>pretrained_ljs.pth</span><input bind:value={paths[item.id]} placeholder="C:\\percorso\\pretrained_ljs.pth" /></label>
+        {/if}
+        {#if progress && progress.id === item.id}
+          <div class="small muted">{progress.pct}% · {progress.msg}</div>
+          <progress max="100" value={progress.pct} style="width:100%"></progress>
         {/if}
         <div class="actions">
           {#if item.actions.includes("install")}<button class="btn btn--primary" disabled={busy === item.id} onclick={() => act(item, "install")}>{item.bootstrap ? t("micromamba.install") : t("components.install")}</button>{/if}

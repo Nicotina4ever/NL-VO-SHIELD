@@ -13,6 +13,8 @@ import json
 import os
 import shutil
 import subprocess
+import threading
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -22,6 +24,10 @@ from .util import atomic_write_text, dir_size, utc_now_iso
 
 class ComponentError(NlvsError):
     code = "COMPONENT_ERROR"
+
+
+_JOBS: dict[str, dict[str, Any]] = {}
+_JOBS_LOCK = threading.Lock()
 
 
 _BUILTINS = [
@@ -198,13 +204,32 @@ class ComponentManager:
             target = self._external_path(cid)
             if action == "install":
                 if not local_path:
-                    from .bootstrap import install as bootstrap_install
-                    result = bootstrap_install(self.data_dir, cid)
-                    enabled[cid] = True
-                    self._write(state)
-                    return {"id": cid, "action": "install", "bootstrap": True,
-                            "path": result.get("component"), "runtime": result.get("runtime"),
-                            "manual_missing": result.get("manual_missing", [])}
+                    job_id = uuid.uuid4().hex
+                    with _JOBS_LOCK:
+                        _JOBS[job_id] = {"job_id": job_id, "component": cid, "status": "running",
+                                         "stage": "queued", "percent": 0, "message": "In coda",
+                                         "logs": [], "started_at": utc_now_iso()}
+                    def _worker(job_id: str = job_id, cid: str = cid) -> None:
+                        try:
+                            from .bootstrap import install as bootstrap_install
+                            def progress(stage, pct, msg):
+                                with _JOBS_LOCK:
+                                    job = _JOBS[job_id]
+                                    job.update(stage=stage, percent=int(pct), message=msg)
+                                    job["logs"].append(f"{pct}% {msg}")
+                                    job["logs"] = job["logs"][-80:]
+                            result = bootstrap_install(self.data_dir, cid, progress)
+                            st = self._state(); en = st.setdefault("enabled", {}); en[cid] = True; self._write(st)
+                            with _JOBS_LOCK:
+                                _JOBS[job_id].update(status="done", percent=100, stage="done",
+                                                     message="Installato", result={"path": result.get("component"),
+                                                     "runtime": result.get("runtime"),
+                                                     "manual_missing": result.get("manual_missing", [])})
+                        except Exception as exc:
+                            with _JOBS_LOCK:
+                                _JOBS[job_id].update(status="error", message=str(exc), stage="error")
+                    threading.Thread(target=_worker, daemon=True).start()
+                    return {"id": cid, "action": "install", "bootstrap": True, "job_id": job_id, "status": "running"}
                 source = Path(local_path).expanduser().resolve()
                 missing = [rel for rel in spec["required"] if not (source / rel).is_file()]
                 if missing:
@@ -349,6 +374,14 @@ class ComponentManager:
 
         shutil.rmtree(target, onerror=_on_error)
         return not target.exists()
+
+    def job(self, job_id: str) -> dict[str, Any]:
+        with _JOBS_LOCK:
+            return dict(_JOBS.get(job_id) or {"job_id": job_id, "status": "unknown"})
+
+    def jobs(self) -> list[dict[str, Any]]:
+        with _JOBS_LOCK:
+            return [dict(job) for job in _JOBS.values()]
 
     def is_enabled(self, cid: str) -> bool:
         return bool(self._state().get("enabled", {}).get(cid, True))

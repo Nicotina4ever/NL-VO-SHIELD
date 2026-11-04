@@ -241,6 +241,8 @@ class RpcServer:
             "lab.verify": self._lab_verify,
             "components.list": self._components_list,
             "components.action": self._components_action,
+            "components.jobs": self._components_jobs,
+            "components.job": self._components_job,
             "micromamba.status": self._micromamba_status,
             "micromamba.install": self._micromamba_install,
             "micromamba.verify": self._micromamba_verify,
@@ -820,6 +822,12 @@ class RpcServer:
             local_path=params.get("local_path"),
             confirmed=bool(params.get("confirmed", False)),
         )}
+
+    def _components_jobs(self, params):
+        return {"jobs": self._components().jobs()}
+
+    def _components_job(self, params):
+        return {"job": self._components().job(str(params.get("job_id") or ""))}
 
     def _micromamba(self):
         from .micromamba import MicromambaManager

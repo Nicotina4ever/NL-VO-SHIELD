@@ -1300,6 +1300,16 @@ pub struct ComponentActionRequest {
 }
 
 #[tauri::command]
+pub async fn components_jobs(state: State<'_, AppCtx>) -> NlResult<Value> {
+    rpc(state.inner(), "components.jobs", json!({})).await
+}
+
+#[tauri::command]
+pub async fn components_job(state: State<'_, AppCtx>, job_id: String) -> NlResult<Value> {
+    rpc(state.inner(), "components.job", json!({ "job_id": job_id })).await
+}
+
+#[tauri::command]
 pub async fn components_list(state: State<'_, AppCtx>) -> NlResult<Value> {
     rpc(state.inner(), "components.list", json!({})).await
 }

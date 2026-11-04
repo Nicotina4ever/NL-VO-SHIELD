@@ -106,6 +106,8 @@ pub fn run() {
             commands::check_updates,
             commands::lab_status,
             commands::components_list,
+            commands::components_jobs,
+            commands::components_job,
             commands::components_action,
             commands::micromamba_status,
             commands::micromamba_install,
